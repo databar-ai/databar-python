@@ -1,0 +1,4 @@
+global-exclude *.py[co]
+global-exclude __pycache__
+graft tests
+include README.md
