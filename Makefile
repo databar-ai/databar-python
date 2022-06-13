@@ -2,11 +2,45 @@ PN := databar
 LINT_TARGET := setup.py src/ tests/
 MYPY_TARGET := src/${PN} tests/
 
+PYTHON := python3
 
 .PHONY: develop
 develop:
 	@python -m pip install --upgrade pip setuptools wheel
 	@python -m pip install -e .[develop]
+
+
+.PHONY: dist
+# target: dist - Build all artifacts
+dist: dist-sdist dist-wheel
+
+
+.PHONY: dist-sdist
+# target: dist-sdist - Build sdist artifact
+dist-sdist:
+	@${PYTHON} setup.py sdist
+
+
+.PHONY: dist-wheel
+# target: dist-wheel - Build wheel artifact
+dist-wheel:
+	@${PYTHON} setup.py bdist_wheel
+
+
+.PHONY: distcheck
+# target: distcheck - Verify distributed artifacts
+distcheck: distcheck-clean sdist
+	@mkdir -p dist/$(PN)
+	@tar -xf dist/$(PN)-$(PV).tar.gz -C dist/$(PN) --strip-components=1
+	@$(MAKE) -C dist/$(PN) venv
+	. dist/$(PN)/venv/bin/activate && $(MAKE) -C dist/$(PN) develop
+	. dist/$(PN)/venv/bin/activate && $(MAKE) -C dist/$(PN) check
+	@rm -rf dist/$(PN)
+
+
+.PHONY: distcheck-clean
+distcheck-clean:
+	@rm -rf dist/$(PN)
 
 
 .PHONY: format
