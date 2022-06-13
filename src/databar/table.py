@@ -58,16 +58,28 @@ class Table:
         raise_for_status(self._session.get(self._base_url))
 
     def get_total_cost(self) -> float:
+        """Returns total cost of all requests"""
         response = self._session.get(self._base_url)
         raise_for_status(response)
         return response.json()["total_cost"]
 
     def get_status(self) -> str:
+        """Returns status of requests.
+
+        Status types:
+            - **none** - there are no requests.
+            - **failed** - all requests are failed.
+            - **partially_completed** - part of requests are failed|canceled,
+              part of requests are successful.
+            - **completed** - all requests are successful.
+            - **processing** - requests are processing.
+        """
         response = self._session.get(urljoin(self._base_url, "request-status"))
         raise_for_status(response)
         return response.json()["status"]
 
     def cancel_request(self):
+        """Cancels processing request."""
         raise_for_status(self._session.post(urljoin(self._base_url, "request-cancel")))
 
     def append_data(
@@ -76,6 +88,20 @@ class Table:
         pagination: Optional[int] = None,
         authorization_id: Optional[int] = None,
     ):
+        """
+        Appends data to table.
+
+        :param params: Parameters which must be formed in according to dataset. Can be
+            retrieved from :func:`~databar.connection.Connection.get_params_of_dataset`.
+            Pass empty dictionary if there are no parameters.
+        :param pagination: Count of rows|pages. Depends on what type of pagination
+            dataset uses. If pagination type is `is_based_on_rows`, then count of rows
+            must be sent, otherwise count of pages. If there is no pagination,
+            nothing is required. Optional.
+        :param authorization_id: Id of api key. Can be retrieved from
+            :func:`~databar.connection.Connection.list_of_api_keys`. Pass only if it's
+            required by dataset. Optional.
+        """
         raise_for_status(
             self._session.post(
                 urljoin(self._base_url, "append-data"),
@@ -103,7 +129,7 @@ class Table:
         return columns
 
     def _get_rows(self):
-        per_page = 50
+        per_page = 1000
         rows_url = urljoin(self._base_url, "rows")
 
         first_rows_response = self._session.get(rows_url, params={"per_page": per_page})
@@ -142,6 +168,7 @@ class Table:
         )
 
     def as_pandas_df(self) -> pandas.DataFrame:
+        """Returns table as a pandas dataframe."""
         rows = self._get_rows()
         columns = self._get_columns()
         return pandas.DataFrame(data=rows, columns=columns)
