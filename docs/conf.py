@@ -46,7 +46,7 @@ copyright = "%s, %s" % (_copyright_year, author)
 # The full version, including alpha/beta/rc tags
 release = get_metadata_value("version")
 # The short X.Y version
-version = release.rsplit(".", 1)[0]  # `1.0.16+g40b2401` -> `1.0`
+version = release.rsplit("+", 1)[0]  # `1.0.16+g40b2401` -> `1.0.16`
 
 # -- General configuration ---------------------------------------------------
 

@@ -44,7 +44,8 @@ def raise_for_status(response: Response):
     """Raises :class:`HTTPError`, if one occurred."""
     if 400 <= response.status_code < 600:
         reason = None
-        if content := response.content:
+        content = response.content
+        if content is not None:
             try:
                 reason = content.decode(guess_json_utf(content))
             except UnicodeDecodeError:
