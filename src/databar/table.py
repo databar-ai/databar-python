@@ -105,7 +105,7 @@ class Table:
         raise_for_status(
             self._session.post(
                 urljoin(self._base_url, "append-data"),
-                data={
+                json={
                     "params": [params],
                     "rows_or_pages": pagination,
                     "authorization": authorization_id,
