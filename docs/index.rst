@@ -18,13 +18,13 @@ can access databar.ai functionality from python.
 Quickstart
 ----------
 
-`databar-python` requires Python 3.8 or newer.
+`databar` package requires Python 3.8 or newer.
 
 Installation:
 
 ::
 
-    pip install databar-python
+    pip install databar
 
 
 To get started with databar-python, you need to have api-key.

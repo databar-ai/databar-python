@@ -95,7 +95,7 @@ class Table:
             retrieved from :func:`~databar.connection.Connection.get_params_of_dataset`.
             Pass empty dictionary if there are no parameters.
         :param pagination: Count of rows|pages. Depends on what type of pagination
-            dataset uses. If pagination type is `is_based_on_rows`, then count of rows
+            dataset uses. If pagination type is `based_on_rows`, then count of rows
             must be sent, otherwise count of pages. If there is no pagination,
             nothing is required. Optional.
         :param authorization_id: Id of api key. Can be retrieved from

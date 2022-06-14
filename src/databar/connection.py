@@ -124,8 +124,7 @@ class Connection:
         self, page: int = 1, source_id: Optional[int] = None
     ) -> PaginatedResponse:
         """
-        Returns a list of api keys using pagination.
-        One page stores 100 records.
+        Returns a list of api keys using pagination. One page stores 100 records.
 
         :param page: Page you want to retrieve. Default is 1.
         :param source_id: Id of source to filter api keys. Can be retrieved from
@@ -202,7 +201,7 @@ class Connection:
 
     def get_params_of_dataset(self, dataset_id: int) -> Dict[str, Any]:
         """
-        Returns parameters of dataset. The result stores info about authorization
+        Returns parameters of dataset. The result is info about authorization,
         pagination, query parameters of dataset.
         """
 
