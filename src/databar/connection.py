@@ -31,7 +31,7 @@ class Connection:
         :param api_key: Api key from databar.ai
         """
         self._session = requests.Session()
-        self._session.headers.update({"Authorization": f"Token {api_key}"})
+        self._session.headers.update({"X-APIKey": f"{api_key}"})
         self._base_url = "https://databar.ai/api/"
 
         try:
@@ -139,7 +139,7 @@ class Connection:
         if source_id is not None:
             params["api"] = source_id
         response = self._session.get(
-            urljoin(self._base_url, "v1/apikey"),
+            urljoin(self._base_url, "v2/apikeys"),
             params=params,
         )
         raise_for_status(response)
