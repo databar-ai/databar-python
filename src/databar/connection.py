@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, NamedTuple, Optional
+from typing import Any, Dict, List, NamedTuple
 from urllib.parse import urljoin
 
 import requests
@@ -13,7 +13,7 @@ class PaginatedResponse(NamedTuple):
 
     :param page: Requested page number.
     :param has_next_page: Boolean field to determine if there are more data.
-    :param data: Result of request. List of sources|datasets|api-keys|tables.
+    :param data: Result of request. List of api-keys|tables.
     """
 
     page: int
@@ -52,92 +52,17 @@ class Connection:
         raise_for_status(response)
         return response.json()
 
-    def list_of_sources(
-        self, page: int = 1, search: Optional[str] = None
-    ) -> PaginatedResponse:
-        """
-        Returns a list of available sources using pagination.
-        One page stores 100 records.
-
-        :param page: Page you want to retrieve. Default is 1.
-        :param search: Search query you want to apply, for example, Coingecko. Optional.
-        """
-
-        params = {
-            "page": page,
-            "per_page": 100,
-        }
-        if search is not None:
-            params["search"] = search
-
-        response = self._session.get(
-            urljoin(self._base_url, "v2/sources/lite-list/"),
-            params=params,
-        )
-        raise_for_status(response)
-        response_json = response.json()
-        return PaginatedResponse(
-            page=page,
-            data=response_json["results"],
-            has_next_page=bool(response_json["next"]),
-        )
-
-    def list_of_datasets(
-        self,
-        page: int = 1,
-        search: Optional[str] = None,
-        source_id: Optional[int] = None,
-    ) -> PaginatedResponse:
-        """
-        Returns a list of available datasets using pagination.
-        One page stores 100 records.
-
-        :param page: Page you want to retrieve. Default is 1.
-        :param search: Search query you want to apply, for example, Coingecko. Optional.
-        :param source_id: Id of source to filter datasets. Can be retrieved from
-            :func:`~Connection.list_of_sources`. If it's passed, then will be returned
-            only datasets of specific source. Optional.
-        """
-
-        params = {
-            "page": page,
-            "per_page": 100,
-        }
-        if search is not None:
-            params["search"] = search
-        if source_id is not None:
-            params["api"] = source_id
-
-        response = self._session.get(
-            urljoin(self._base_url, "v2/datasets/lite-list/"),
-            params=params,
-        )
-        raise_for_status(response)
-        response_json = response.json()
-        return PaginatedResponse(
-            page=page,
-            data=response_json["results"],
-            has_next_page=bool(response_json["next"]),
-        )
-
-    def list_of_api_keys(
-        self, page: int = 1, source_id: Optional[int] = None
-    ) -> PaginatedResponse:
+    def list_of_api_keys(self, page: int = 1) -> PaginatedResponse:
         """
         Returns a list of api keys using pagination. One page stores 100 records.
 
         :param page: Page you want to retrieve. Default is 1.
-        :param source_id: Id of source to filter api keys. Can be retrieved from
-            :func:`~Connection.list_of_sources`. If it's passed, then will be returned
-            only api keys of specific source. Optional.
         """
 
         params = {
             "page": page,
             "per_page": 100,
         }
-        if source_id is not None:
-            params["api"] = source_id
         response = self._session.get(
             urljoin(self._base_url, "v2/apikeys"),
             params=params,
@@ -179,63 +104,3 @@ class Connection:
             using :func:`~Connection.list_of_tables` method.
         """
         return Table(session=self._session, tid=table_id)
-
-    def create_table_via_dataset(self, dataset_id: int) -> Table:
-        """Creates table via dataset."""
-
-        raise_for_status(
-            self._session.get(urljoin(self._base_url, f"v1/dataset/{dataset_id}/"))
-        )
-
-        response = self._session.post(
-            urljoin(self._base_url, "v2/tables/create-using-dataset/"),
-            json={
-                "dataset": dataset_id,
-            },
-        )
-        raise_for_status(response)
-        response_as_json = response.json()
-
-        table = Table(tid=response_as_json["id"], session=self._session)
-        return table
-
-    def get_params_of_dataset(self, dataset_id: int) -> Dict[str, Any]:
-        """
-        Returns parameters of dataset. The result is info about authorization,
-        pagination, query parameters of dataset.
-        """
-
-        response = self._session.get(
-            urljoin(self._base_url, f"v2/datasets/{dataset_id}/params/"),
-        )
-        raise_for_status(response)
-        return response.json()
-
-    def calculate_price_of_request(
-        self,
-        dataset_id: int,
-        params: Dict[str, Any],
-        pagination: Optional[int] = None,
-    ) -> float:
-        """
-        Calculates price of request in credits.
-
-        :param dataset_id: Id of dataset you want to calculate price.
-        :param params: Parameters which must be formed in according to dataset.
-            Can be retrieved from :func:`~Connection.get_params_of_dataset`.
-            Pass empty dictionary if there are no parameters.
-        :param pagination: Count of rows|pages. Depends on what type of pagination
-            dataset uses. If pagination type is `based_on_rows`, then count of rows
-            must be sent, otherwise count of pages. If there is no pagination,
-            nothing is required. Optional.
-        """
-        params = {"params": [params]}
-        if pagination is not None:
-            params["rows_or_pages"] = pagination
-
-        response = self._session.post(
-            urljoin(self._base_url, f"v2/datasets/{dataset_id}/pricing-calculate/"),
-            json=params,
-        )
-        raise_for_status(response)
-        return response.json()["total_cost"]

@@ -55,7 +55,14 @@ class Table:
     def __init__(self, session: requests.Session, tid: int):
         self._session = session
         self._base_url = f"https://databar.ai/api/v2/tables/{tid}/"
-        raise_for_status(self._session.get(self._base_url))
+        response = self._session.get(self._base_url)
+        raise_for_status(response)
+        self._dataset_id: Optional[int] = response.json()["dataset_id_based_on"]
+
+    @property
+    def dataset_id(self):
+        """Returns dataset id of table."""
+        return self._dataset_id
 
     def get_total_cost(self) -> float:
         """Returns total cost of all requests"""
@@ -80,20 +87,20 @@ class Table:
 
     def cancel_request(self):
         """Cancels processing request."""
-        raise_for_status(self._session.post(urljoin(self._base_url, "request-cancel")))
+        raise_for_status(self._session.post(urljoin(self._base_url, "request-cancel/")))
 
     def append_data(
         self,
-        params: Dict[str, Any],
+        parameters: Optional[Dict[str, Any]] = None,
         pagination: Optional[int] = None,
         authorization_id: Optional[int] = None,
     ):
         """
         Appends data to table.
 
-        :param params: Parameters which must be formed in according to dataset. Can be
-            retrieved from :func:`~databar.connection.Connection.get_params_of_dataset`.
-            Pass empty dictionary if there are no parameters.
+        :param parameters: Parameters which must be formed in according to dataset.
+            Can be retrieved from :func:`~Table.get_params_of_dataset`.
+            Nothing is required if there are no parameters.
         :param pagination: Count of rows|pages. Depends on what type of pagination
             dataset uses. If pagination type is `based_on_rows`, then count of rows
             must be sent, otherwise count of pages. If there is no pagination,
@@ -102,16 +109,74 @@ class Table:
             :func:`~databar.connection.Connection.list_of_api_keys`. Pass only if it's
             required by dataset. Optional.
         """
+        if self._dataset_id is None:
+            raise ValueError(
+                "Cannot get parameters for table which was "
+                "created from blank table or based on csv file."
+            )
+
+        params: Dict[str, Any] = {"params": [parameters or {}]}
+        if pagination is not None:
+            params["rows_or_pages"] = pagination
+        if authorization_id is not None:
+            params["authorization"] = authorization_id
+
         raise_for_status(
             self._session.post(
-                urljoin(self._base_url, "append-data"),
-                json={
-                    "params": [params],
-                    "rows_or_pages": pagination,
-                    "authorization": authorization_id,
-                },
+                urljoin(self._base_url, "append-data/"),
+                json=params,
             )
         )
+
+    def get_params_of_dataset(self) -> Dict[str, Any]:
+        """
+        Returns parameters of dataset. The result is info about authorization,
+        pagination, query parameters of dataset.
+        """
+        if self._dataset_id is None:
+            raise ValueError(
+                "Cannot get parameters for table which was "
+                "created from blank table or based on csv file."
+            )
+
+        response = self._session.get(
+            f"https://databar.ai/api/v2/datasets/{self._dataset_id}/params/",
+        )
+        raise_for_status(response)
+        return response.json()
+
+    def calculate_price_of_request(
+        self,
+        parameters: Dict[str, Any] = None,
+        pagination: Optional[int] = None,
+    ) -> float:
+        """
+        Calculates price of request in credits.
+
+        :param parameters: Parameters which must be formed in according to dataset.
+            Can be retrieved from :func:`~Table.get_params_of_dataset`.
+            Nothing is required if there are no parameters.
+        :param pagination: Count of rows|pages. Depends on what type of pagination
+            dataset uses. If pagination type is `based_on_rows`, then count of rows
+            must be sent, otherwise count of pages. If there is no pagination,
+            nothing is required. Optional.
+        """
+        if self._dataset_id is None:
+            raise ValueError(
+                "Cannot get parameters for table which was "
+                "created from blank table or based on csv file."
+            )
+
+        params: Dict[str, Any] = {"params": [parameters or {}]}
+        if pagination is not None:
+            params["rows_or_pages"] = pagination
+
+        response = self._session.post(
+            f"https://databar.ai/api/v2/datasets/{self._dataset_id}/pricing-calculate/",
+            json=params,
+        )
+        raise_for_status(response)
+        return response.json()["total_cost"]
 
     def _get_columns(self):
         json_columns_states = self._session.get(
