@@ -8,6 +8,7 @@ import aiohttp
 import pandas
 import requests
 
+from databar.connection import PaginatedResponse
 from databar.helpers import raise_for_status
 
 
@@ -69,6 +70,23 @@ class Table:
         response = self._session.get(self._base_url)
         raise_for_status(response)
         return response.json()["total_cost"]
+
+    def get_meta(self, page=1) -> PaginatedResponse:
+        """"""
+        params = {
+            "page": page,
+            "per_page": 100,
+        }
+        response = self._session.get(
+            urljoin(self._base_url, "request-meta"), params=params
+        )
+        raise_for_status(response)
+        response_json = response.json()
+        return PaginatedResponse(
+            page=page,
+            data=response_json["results"],
+            has_next_page=bool(response_json["next"]),
+        )
 
     def get_status(self) -> str:
         """Returns status of requests.

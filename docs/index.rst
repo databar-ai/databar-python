@@ -5,7 +5,7 @@ Welcome to databar-python's documentation!
 :Documentation: https://databar-python.readthedocs.io/
 :Source Code: https://github.com/databar-ai/databar-python
 :Issue Tracker: https://github.com/databar-ai/databar-python/issues
-:PyPI: https://pypi.org/project/databar-python/
+:PyPI: https://pypi.org/project/databar/
 
 
 Overview
