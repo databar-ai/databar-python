@@ -8,8 +8,7 @@ import aiohttp
 import pandas
 import requests
 
-from databar.connection import PaginatedResponse
-from databar.helpers import raise_for_status
+from .helpers import PaginatedResponse, raise_for_status
 
 
 def _get_nested_json_columns(
@@ -53,17 +52,27 @@ async def _get_data(
 
 
 class Table:
-    def __init__(self, session: requests.Session, tid: int):
+    def __init__(self, session: requests.Session, tid: str):
         self._session = session
-        self._base_url = f"https://databar.ai/api/v2/tables/{tid}/"
+        self._base_url = f"https://databar.ai/api/v3/tables/{tid}/"
         response = self._session.get(self._base_url)
         raise_for_status(response)
-        self._dataset_id: Optional[int] = response.json()["dataset_id_based_on"]
+        self._table_detail: dict = response.json()
+
+    def __str__(self) -> str:
+        return self._table_detail["name"]
+
+    def __repr__(self) -> str:
+        return self._table_detail["name"]
+
+    @property
+    def uid(self):
+        return self._table_detail["identifier"]
 
     @property
     def dataset_id(self):
         """Returns dataset id of table."""
-        return self._dataset_id
+        return self._table_detail["dataset_id_based_on"]
 
     def get_total_cost(self) -> float:
         """Returns total cost of all requests"""
@@ -127,13 +136,13 @@ class Table:
             :func:`~databar.connection.Connection.list_of_api_keys`. Pass only if it's
             required by dataset. Optional.
         """
-        if self._dataset_id is None:
+        if self.dataset_id is None:
             raise ValueError(
                 "Cannot get parameters for table which was "
                 "created from blank table or based on csv file."
             )
 
-        params: Dict[str, Any] = {"params": [parameters or {}]}
+        params: Dict[str, Any] = {"params": parameters or {}}
         if pagination is not None:
             params["rows_or_pages"] = pagination
         if authorization_id is not None:
@@ -151,14 +160,14 @@ class Table:
         Returns parameters of dataset. The result is info about authorization,
         pagination, query parameters of dataset.
         """
-        if self._dataset_id is None:
+        if self.dataset_id is None:
             raise ValueError(
                 "Cannot get parameters for table which was "
                 "created from blank table or based on csv file."
             )
 
         response = self._session.get(
-            f"https://databar.ai/api/v2/datasets/{self._dataset_id}/params/",
+            f"https://databar.ai/api/v2/datasets/{self.dataset_id}/params/",
         )
         raise_for_status(response)
         return response.json()
@@ -179,18 +188,18 @@ class Table:
             must be sent, otherwise count of pages. If there is no pagination,
             nothing is required. Optional.
         """
-        if self._dataset_id is None:
+        if self.dataset_id is None:
             raise ValueError(
                 "Cannot get parameters for table which was "
                 "created from blank table or based on csv file."
             )
 
-        params: Dict[str, Any] = {"params": [parameters or {}]}
+        params: Dict[str, Any] = {"params": parameters or {}}
         if pagination is not None:
             params["rows_or_pages"] = pagination
 
         response = self._session.post(
-            f"https://databar.ai/api/v2/datasets/{self._dataset_id}/pricing-calculate/",
+            f"https://databar.ai/api/v2/datasets/{self.dataset_id}/pricing-calculate/",
             json=params,
         )
         raise_for_status(response)

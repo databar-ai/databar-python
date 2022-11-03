@@ -1,5 +1,6 @@
 from functools import lru_cache, wraps
 from time import monotonic_ns
+from typing import Any, Dict, List, NamedTuple
 
 from requests import HTTPError, Response
 from requests.utils import guess_json_utf
@@ -70,3 +71,17 @@ def raise_for_status(response: Response):
         )
 
         raise HTTPError(http_error_msg, response=response)
+
+
+class PaginatedResponse(NamedTuple):
+    """
+    Result of request where pagination is used.
+
+    :param page: Requested page number.
+    :param has_next_page: Boolean field to determine if there are more data.
+    :param data: Result of request. List of api-keys|tables.
+    """
+
+    page: int
+    has_next_page: bool
+    data: List[Dict[str, Any]]
