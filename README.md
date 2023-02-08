@@ -14,8 +14,12 @@
 [black-badge]: https://img.shields.io/badge/code%20style-black-000000.svg
 [black-link]: https://github.com/psf/black
 
-This is official [databar.ai][databar.ai] python library. Using this package you can access databar.ai functionality from python.
+This is official [databar.ai][databar.ai] python library.
+Connect to any API with few lines of code. No more custom pagination,
+authorization, parser code. Get data in format you need: json, pandas Dataframe, etc.
 
 [databar.ai]: https://databar.ai
 
 Docs: https://databar-python.readthedocs.io/
+
+Join our [discord](https://discord.com/invite/nUN4w2eVNK).
