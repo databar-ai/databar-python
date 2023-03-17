@@ -174,7 +174,7 @@ class Table:
 
     def calculate_price_of_request(
         self,
-        parameters: Dict[str, Any] = None,
+        parameters: Optional[Dict[str, Any]] = None,
         pagination: Optional[int] = None,
     ) -> float:
         """

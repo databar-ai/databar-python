@@ -340,6 +340,11 @@ class Connection:
                 return data
             else:
                 return pd.DataFrame(data=data)
+        elif status == "no_data":
+            if fmt == "json":
+                return []
+            else:
+                return pd.DataFrame(data=[])
         elif status == "failed":
             print("\nRequest failed. Check info below for details:")
             response = self._session.get(
