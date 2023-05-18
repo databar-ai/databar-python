@@ -102,125 +102,6 @@ class Connection:
         else:
             print("No endpoints found.")
 
-    def get_endpoint_docs(self, endpoint: str):
-        api, endpoint = endpoint.split("--", maxsplit=1)
-        response = self._session.post(
-            urljoin(self._base_url, "v1/dataset/retrieve/"),
-            json={"api": api, "dataset": endpoint},
-        )
-        raise_for_status(response)
-        endpoint_id = response.json()["id"]
-
-        params_response = self._session.get(
-            urljoin(self._base_url, f"v2/datasets/{endpoint_id}/params/")
-        )
-        raise_for_status(params_response)
-        headers_response = self._session.get(
-            urljoin(self._base_url, f"v1/dataset/{endpoint_id}/headers/")
-        )
-        raise_for_status(headers_response)
-
-        params_response_json = params_response.json()
-        headers_response_json = headers_response.json()
-
-        if params_response_json["authorization_is_required"]:
-            if params_response_json["oauth_based"]:
-                print(
-                    f"Authorization: This api uses OAuth2 for authorization. "
-                    f"Generate link to authorize via following code: "
-                    f"connection.authorize(api='{api}'). "
-                    f"To check existing keys call connection.api_keys(api='{api}')\n"
-                )
-            else:
-                print(
-                    f"Authorization: This api requires your own api key. "
-                    f"To add new one, please use next method: "
-                    f"connection.authorize(api='{api}', value='<your_api_key_here>'). "
-                    f"To check existing keys call connection.api_keys(api='{api}')\n"
-                )
-        else:
-            print("Authorization: No authorization required.\n")
-
-        if pagination := params_response_json["pagination"]:
-            if pagination["is_based_on_rows"]:
-                rows_count = pagination["rows_count_per_request"]
-                print(
-                    "Pagination: this endpoint pagination is based on rows. Default ",
-                    f"{rows_count} rows. Rows count must be multiple of {rows_count}, "
-                    f"e.g. {rows_count}, {rows_count * 2}, {rows_count * 3}, etc.\n",
-                )
-            else:
-                print(
-                    "Pagination: this endpoint pagination is page-based,"
-                    " e.g. 1, 2, 3, etc. Default 1.\n"
-                )
-        else:
-            print("Pagination: No pagination required.\n")
-
-        if params := params_response_json["params"]:
-            print("Input parameters:")
-            for param in params:
-                id_of_param = param.pop("id", None)
-                if param["type"] in ("choice", "multiplechoice"):
-                    param["description"] = (param["description"] or "").rstrip(".") + (
-                        f". To see all available choices call: "
-                        f"connection.get_choices(param_id={id_of_param})"
-                    )
-            print(tabulate(params, headers="keys", tablefmt="pretty"))
-        else:
-            print("Input parameters: No parameters required.\n")
-
-        if headers_response_json:
-            headers = [
-                {
-                    "name": header["inner_name_field"],
-                    "type": header["type_field"],
-                }
-                for header in headers_response_json
-            ]
-            print("\nResult columns:")
-            print(tabulate(headers, headers="keys", tablefmt="pretty"))
-        else:
-            print(
-                "Result columns: Houston, we have a problem, "
-                "there are no columns to return. Please, "
-                "contact our administrator at info@databar.ai"
-            )
-
-    def get_choices(
-        self, param_id: int, search_query: Optional[str] = None, page: int = 1
-    ):
-        q = ""
-        qr = ""
-        if search_query:
-            q = f"&search={search_query}"
-            qr = f", search query '{search_query}'"
-
-        response = self._session.get(
-            urljoin(
-                self._base_url, f"v1/request-param/{param_id}/options/?page={page}{q}"
-            ),
-        )
-        raise_for_status(response)
-        response_json = response.json()
-        options = response_json["result"]
-        if options:
-            print(f"Parameters: page {page}{qr}. {len(options)} results found.")
-            print(
-                tabulate(
-                    [
-                        {"id": option["id"], "name": option["name"]}
-                        for option in options
-                    ],
-                    headers="keys",
-                    tablefmt="pretty",
-                )
-            )
-            if response_json["next"]:
-                print(f"There are more endpoints. Request next {page + 1} page.")
-        else:
-            print("No choices found")
-
     def authorize(
         self,
         api: str,
@@ -346,25 +227,13 @@ class Connection:
             else:
                 return pd.DataFrame(data=[])
         elif status == "failed":
-            print("\nRequest failed. Check info below for details:")
             response = self._session.get(
                 urljoin(self._base_url, f"v3/request/{request_identifier}/meta/")
             )
             raise_for_status(response)
-            print(
-                tabulate(
-                    list(itertools.chain(*response.json().values())),
-                    headers="keys",
-                    tablefmt="pretty",
-                )
-            )
-            return None
+            return {"error": response.json()}
         else:
-            print(
-                "\nSomething went wrong. Unknown status of request. "
-                "Please, contact our administrator at info@databar.ai"
-            )
-            return None
+            raise ValueError(f"Unknown status: {status}")
 
     def enrich(
         self,
