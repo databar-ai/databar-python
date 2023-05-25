@@ -171,7 +171,7 @@ class Connection:
     def make_request(
         self,
         endpoint: str,
-        params: Optional[Dict[str, Any]] = None,
+        params: Optional[Union[List[Dict[str, Any]], Dict[str, Any]]] = None,
         rows_or_pages: Optional[int] = None,
         api_key: Optional[int] = None,
         fmt: Literal["df", "json"] = "df",
@@ -187,11 +187,16 @@ class Connection:
         raise_for_status(response)
         endpoint_id = response.json()["id"]
 
+        if isinstance(params, dict):
+            params = [params]
+
         response = self._session.post(
             urljoin(self._base_url, "v3/request/create-by-dataset/"),
             json={
                 "source_request": "python-sdk",
-                "rows_params": [{"__eid": "0", **params}],
+                "rows_params": [
+                    {"__eid": str(i), **params[i]} for i in range(len(params))
+                ],
                 "rows_or_pages": rows_or_pages,
                 "authorization": api_key,
                 "dataset": endpoint_id,
