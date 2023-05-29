@@ -1,24 +1,9 @@
-from typing import Any, Dict, List, NamedTuple
 from urllib.parse import urljoin
 
 import requests
 
-from .helpers import raise_for_status, timed_lru_cache
+from .helpers import PaginatedResponse, raise_for_status, timed_lru_cache
 from .table import Table
-
-
-class PaginatedResponse(NamedTuple):
-    """
-    Result of request where pagination is used.
-
-    :param page: Requested page number.
-    :param has_next_page: Boolean field to determine if there are more data.
-    :param data: Result of request. List of api-keys|tables.
-    """
-
-    page: int
-    has_next_page: bool
-    data: List[Dict[str, Any]]
 
 
 class Connection:
@@ -86,7 +71,7 @@ class Connection:
             "per_page": 100,
         }
         response = self._session.get(
-            urljoin(self._base_url, "v2/tables"),
+            urljoin(self._base_url, "v3/tables"),
             params=params,
         )
         response_json = response.json()
@@ -96,11 +81,12 @@ class Connection:
             data=response_json["results"],
         )
 
-    def get_table(self, table_id: int) -> Table:
+    def get_table(self, table_id: str) -> Table:
         """
         Returns specific table.
 
-        :param table_id: Table id you want to get. List of tables can be retrieved
-            using :func:`~Connection.list_of_tables` method.
+        :param table_id: Table identifier you want to get.
+        List of tables can be retrieved
+        using :func:`~Connection.list_of_tables` method.
         """
         return Table(session=self._session, tid=table_id)

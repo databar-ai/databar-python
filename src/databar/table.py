@@ -8,8 +8,7 @@ import aiohttp
 import pandas
 import requests
 
-from databar.connection import PaginatedResponse
-from databar.helpers import raise_for_status
+from .helpers import PaginatedResponse, raise_for_status
 
 
 def _get_nested_json_columns(
@@ -53,9 +52,9 @@ async def _get_data(
 
 
 class Table:
-    def __init__(self, session: requests.Session, tid: int):
+    def __init__(self, session: requests.Session, tid: str):
         self._session = session
-        self._base_url = f"https://databar.ai/api/v2/tables/{tid}/"
+        self._base_url = f"https://databar.ai/api/v3/tables/{tid}/"
         response = self._session.get(self._base_url)
         raise_for_status(response)
         self._dataset_id: Optional[int] = response.json()["dataset_id_based_on"]
@@ -165,7 +164,7 @@ class Table:
 
     def calculate_price_of_request(
         self,
-        parameters: Dict[str, Any] = None,
+        parameters: Optional[Dict[str, Any]] = None,
         pagination: Optional[int] = None,
     ) -> float:
         """
