@@ -76,7 +76,6 @@ def raise_for_status(response: Response):
 class PaginatedResponse(NamedTuple):
     """
     Result of request where pagination is used.
-
     :param page: Requested page number.
     :param has_next_page: Boolean field to determine if there are more data.
     :param data: Result of request. List of api-keys|tables.

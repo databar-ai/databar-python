@@ -399,7 +399,8 @@ class Connection:
         """
         Returns specific table.
 
-        :param table_id: Table id you want to get. List of tables can be retrieved
-            using :func:`~Connection.list_of_tables` method.
+        :param table_id: Table identifier you want to get.
+        List of tables can be retrieved
+        using :func:`~Connection.list_of_tables` method.
         """
         return Table(session=self._session, tid=table_id)
