@@ -1,5 +1,5 @@
 PN := databar
-LINT_TARGET := setup.py src/ tests/
+LINT_TARGET := setup.py src/ tests/ examples/
 MYPY_TARGET := src/${PN} tests/
 
 PYTHON := python3
