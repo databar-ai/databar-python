@@ -3,7 +3,7 @@ requires = ["setuptools>=61", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "databar-ai"
+name = "databar"
 version = "2.0.0"
 description = "Official Databar.ai Python SDK and CLI — connect to enrichments, waterfalls, and tables via api.databar.ai"
 readme = "README.md"

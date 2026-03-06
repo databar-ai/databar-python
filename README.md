@@ -11,7 +11,7 @@ Official Python SDK and CLI for [Databar.ai](https://databar.ai) — run data en
 ## Installation
 
 ```bash
-pip install databar-ai
+pip install databar
 ```
 
 Requires Python 3.9+.
