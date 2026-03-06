@@ -125,7 +125,7 @@ class WaterfallEnrichment(BaseModel):
     id: int
     name: str
     description: str
-    price: str
+    price: Union[str, float]
     params: List[str]
 
 
