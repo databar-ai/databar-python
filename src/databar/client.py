@@ -521,9 +521,16 @@ class DatabarClient:
         self,
         table_uuid: str,
         page: int = 1,
-        per_page: int = 1000,
+        per_page: int = 100,
     ) -> Dict[str, Any]:
-        """Get rows from a table with pagination. Returns raw dict with has_next_page etc."""
+        """
+        Get rows from a table with pagination.
+
+        Returns a dict with keys: ``data`` (list of row dicts), ``has_next_page``,
+        ``total_count``, ``page``.  Each row dict is keyed by column name.
+
+        ``per_page`` max is 500 (API limit). Default is 100.
+        """
         return self._request(
             "GET",
             f"/table/{table_uuid}/rows",

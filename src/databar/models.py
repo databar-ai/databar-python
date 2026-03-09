@@ -20,6 +20,11 @@ from pydantic import BaseModel, Field
 
 
 class User(BaseModel):
+    """Authenticated user profile.
+
+    Fields: first_name, email, balance, plan.
+    """
+
     first_name: Optional[str] = None
     email: str
     balance: float
@@ -51,22 +56,64 @@ class Choices(BaseModel):
 
 
 class EnrichmentParam(BaseModel):
-    name: str
-    is_required: bool
+    """A parameter required or accepted by an enrichment.
+
+    Fields: name, is_required, type_field, description, choices.
+
+    Property aliases: .slug → .name, .label → .description, .required → .is_required.
+    """
+
+    name: str = Field(description="Parameter slug used as the key in the params dict.")
+    is_required: bool = Field(description="Whether this parameter is required.")
     type_field: str = Field(
         description="Input type. Common values: text, select, mselect, datetime."
     )
-    description: str
+    description: str = Field(description="Human-readable label / description.")
     choices: Optional[Choices] = None
+
+    @property
+    def slug(self) -> str:
+        """Alias for name."""
+        return self.name
+
+    @property
+    def label(self) -> str:
+        """Alias for description."""
+        return self.description
+
+    @property
+    def required(self) -> bool:
+        """Alias for is_required."""
+        return self.is_required
 
 
 class EnrichmentResponseField(BaseModel):
-    name: str
-    type_field: str
+    """A field returned in the enrichment result data.
+
+    Fields: name, type_field.
+
+    Property aliases: .slug → .name, .label → .name.
+    """
+
+    name: str = Field(description="Field name as it appears in the result data.")
+    type_field: str = Field(description="Data type of this field.")
+
+    @property
+    def slug(self) -> str:
+        """Alias for name."""
+        return self.name
+
+    @property
+    def label(self) -> str:
+        """Alias for name."""
+        return self.name
 
 
 class EnrichmentSummary(BaseModel):
-    """Enrichment as returned by the list endpoint (no params/response_fields)."""
+    """Enrichment as returned by the list endpoint (no params/response_fields).
+
+    Fields: id, name, description, data_source, price, auth_method.
+    """
 
     id: int
     name: str
@@ -77,7 +124,16 @@ class EnrichmentSummary(BaseModel):
 
 
 class Enrichment(EnrichmentSummary):
-    """Full enrichment detail including params and response fields."""
+    """Full enrichment detail including params and response fields.
+
+    Fields: id, name, description, data_source, price, auth_method, params, response_fields.
+
+    Usage::
+
+        enrichment = client.get_enrichment(123)
+        for p in enrichment.params:
+            print(p.name, p.is_required, p.description)
+    """
 
     params: Optional[List[EnrichmentParam]] = None
     response_fields: Optional[List[EnrichmentResponseField]] = None
@@ -153,6 +209,19 @@ class WaterfallEnrichment(BaseModel):
 
 
 class Waterfall(BaseModel):
+    """A waterfall enrichment that tries multiple providers in sequence.
+
+    Fields: identifier, name, description, input_params, output_fields,
+    available_enrichments, is_email_verifying, email_verifiers.
+
+    Property aliases: .slug → .identifier.
+
+    Usage::
+
+        wf = client.get_waterfall("email_getter")
+        result = client.run_waterfall_sync(wf.identifier, {...})
+    """
+
     identifier: str = Field(description="Slug-style identifier, e.g. 'email_getter'. Use this when calling run_waterfall().")
     name: str
     description: str
@@ -174,21 +243,56 @@ class Waterfall(BaseModel):
 
 
 class Table(BaseModel):
-    identifier: str
+    """A Databar table.
+
+    Fields: identifier, name, created_at, updated_at.
+
+    Property aliases: .id → .identifier, .uuid → .identifier.
+
+    Usage::
+
+        table = client.create_table(name="Leads", columns=["email", "name"])
+        rows = client.get_rows(table.identifier)
+    """
+
+    identifier: str = Field(description="Table UUID. Use this in all table operations.")
     name: str
     created_at: str
     updated_at: str
 
+    @property
+    def id(self) -> str:
+        """Alias for identifier."""
+        return self.identifier
+
+    @property
+    def uuid(self) -> str:
+        """Alias for identifier."""
+        return self.identifier
+
 
 class Column(BaseModel):
-    identifier: str
+    """A column defined on a table.
+
+    Fields: identifier, internal_name, name, type_of_value, data_processor_id.
+    """
+
+    identifier: str = Field(description="Column UUID.")
     internal_name: str
-    name: str
+    name: str = Field(description="Human-readable column name.")
     type_of_value: str
     data_processor_id: Optional[int] = None
 
 
 class TableEnrichment(BaseModel):
+    """An enrichment configured on a table.
+
+    Fields: id, name.
+
+    The id here is the TABLE-ENRICHMENT id — use it with run_table_enrichment(),
+    not the enrichment catalog id.
+    """
+
     id: int
     name: str
 
