@@ -33,7 +33,7 @@ app = typer.Typer(help="Manage tables and rows.")
 
 @app.command("list")
 def list_tables(
-    fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "-f"),
+    fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "--output", "-f"),
 ) -> None:
     """List all tables in your workspace."""
     client = get_client()
@@ -59,7 +59,7 @@ def list_tables(
 def create_table(
     name: Optional[str] = typer.Option(None, "--name", "-n", help="Table name."),
     columns: Optional[str] = typer.Option(None, "--columns", "-c", help="Comma-separated column names."),
-    fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "-f"),
+    fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "--output", "-f"),
 ) -> None:
     """Create a new empty table."""
     col_list = [c.strip() for c in columns.split(",")] if columns else None
@@ -79,7 +79,7 @@ def create_table(
 @app.command("columns")
 def get_columns(
     table_uuid: str = typer.Argument(..., help="Table UUID."),
-    fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "-f"),
+    fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "--output", "-f"),
 ) -> None:
     """List columns defined on a table."""
     client = get_client()
@@ -106,7 +106,7 @@ def get_rows(
     table_uuid: str = typer.Argument(..., help="Table UUID."),
     page: int = typer.Option(1, "--page", help="Page number."),
     per_page: int = typer.Option(1000, "--per-page", help="Rows per page (max 1000)."),
-    fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "-f"),
+    fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "--output", "-f"),
     out: Optional[Path] = typer.Option(None, "--out", "-o", help="Output file (for CSV format)."),
 ) -> None:
     """Get rows from a table."""
@@ -143,7 +143,7 @@ def insert_rows(
     input_file: Optional[Path] = typer.Option(None, "--input", "-i", help="CSV file.", exists=True),
     allow_new_columns: bool = typer.Option(False, "--allow-new-columns", help="Auto-create unknown columns."),
     dedupe_keys: Optional[str] = typer.Option(None, "--dedupe-keys", help="Comma-separated column names for deduplication."),
-    fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "-f"),
+    fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "--output", "-f"),
 ) -> None:
     """Insert rows into a table."""
     raw_rows = _load_rows(data_json, input_file)
@@ -183,7 +183,7 @@ def patch_rows(
     data_json: Optional[str] = typer.Option(None, "--data", "-d", help='JSON array: [{"id":"<uuid>","fields":{...}}]'),
     input_file: Optional[Path] = typer.Option(None, "--input", "-i", help="CSV file (must have an 'id' column).", exists=True),
     no_overwrite: bool = typer.Option(False, "--no-overwrite", help="Only fill empty cells; keep existing values."),
-    fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "-f"),
+    fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "--output", "-f"),
 ) -> None:
     """Update existing rows by row UUID."""
     raw_rows = _load_rows(data_json, input_file)
@@ -219,7 +219,7 @@ def upsert_rows(
     key_col: str = typer.Option(..., "--key-col", "-k", help="Column name to match on (e.g. 'email')."),
     data_json: Optional[str] = typer.Option(None, "--data", "-d", help="JSON array of row objects."),
     input_file: Optional[Path] = typer.Option(None, "--input", "-i", help="CSV file.", exists=True),
-    fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "-f"),
+    fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "--output", "-f"),
 ) -> None:
     """Insert or update rows matched by a key column."""
     raw_rows = _load_rows(data_json, input_file)
@@ -253,7 +253,7 @@ def upsert_rows(
 @app.command("enrichments")
 def table_enrichments(
     table_uuid: str = typer.Argument(..., help="Table UUID."),
-    fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "-f"),
+    fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "--output", "-f"),
 ) -> None:
     """List enrichments configured on a table."""
     client = get_client()
@@ -277,7 +277,7 @@ def add_enrichment(
     table_uuid: str = typer.Argument(..., help="Table UUID."),
     enrichment_id: int = typer.Option(..., "--enrichment-id", "-e", help="Enrichment ID to add."),
     mapping_json: str = typer.Option(..., "--mapping", "-m", help='JSON mapping of param → column, e.g. \'{"email": "email_col"}\''),
-    fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "-f"),
+    fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "--output", "-f"),
 ) -> None:
     """Add an enrichment to a table with a column mapping."""
     try:

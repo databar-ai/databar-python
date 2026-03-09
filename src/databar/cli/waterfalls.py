@@ -27,7 +27,7 @@ app = typer.Typer(help="Search and run waterfall enrichments.")
 @app.command("list")
 def list_waterfalls(
     query: Optional[str] = typer.Option(None, "--query", "-q", help="Filter by name/description."),
-    fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "-f"),
+    fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "--output", "-f"),
 ) -> None:
     """List available waterfall enrichments."""
     client = get_client()
@@ -64,7 +64,7 @@ def list_waterfalls(
 @app.command("get")
 def get_waterfall(
     identifier: str = typer.Argument(..., help="Waterfall identifier."),
-    fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "-f"),
+    fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "--output", "-f"),
 ) -> None:
     """Get details for a specific waterfall."""
     client = get_client()
@@ -103,13 +103,22 @@ def get_waterfall(
         output(rows, OutputFormat.TABLE, table_columns=["id", "name", "price"])
 
 
+@app.command("info", hidden=True)
+def info_waterfall(
+    identifier: str = typer.Argument(..., help="Waterfall identifier."),
+    fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "--output", "-f"),
+) -> None:
+    """Alias for 'get'. Get details for a specific waterfall."""
+    get_waterfall(identifier, fmt)
+
+
 @app.command("run")
 def run_waterfall(
     identifier: str = typer.Argument(..., help="Waterfall identifier."),
     params_json: str = typer.Option(..., "--params", "-p", help='JSON params, e.g. \'{"linkedin_url":"https://..."}\''),
     providers: Optional[str] = typer.Option(None, "--providers", help="Comma-separated provider IDs (default: all)."),
     email_verifier: Optional[int] = typer.Option(None, "--email-verifier", help="Email verifier enrichment ID."),
-    fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "-f"),
+    fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "--output", "-f"),
     raw: bool = typer.Option(False, "--raw", help="Print raw result without formatting."),
 ) -> None:
     """Run a waterfall enrichment and wait for results."""
@@ -151,7 +160,7 @@ def bulk_waterfall(
     input_file: Path = typer.Option(..., "--input", "-i", help="CSV file with one row per input.", exists=True),
     providers: Optional[str] = typer.Option(None, "--providers", help="Comma-separated provider IDs (default: all)."),
     email_verifier: Optional[int] = typer.Option(None, "--email-verifier", help="Email verifier enrichment ID."),
-    fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "-f"),
+    fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "--output", "-f"),
     out: Optional[Path] = typer.Option(None, "--out", "-o", help="Output file (for CSV format)."),
 ) -> None:
     """Run a waterfall enrichment in bulk from a CSV input file."""

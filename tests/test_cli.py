@@ -329,4 +329,4 @@ def test_task_get_poll(monkeypatch):
 def test_version_flag():
     result = runner.invoke(app, ["--version"])
     assert result.exit_code == 0
-    assert "2.0.1" in result.output
+    assert "2.0.2" in result.output

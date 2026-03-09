@@ -28,7 +28,7 @@ app = typer.Typer(help="Search and run data enrichments.")
 @app.command("list")
 def list_enrichments(
     query: Optional[str] = typer.Option(None, "--query", "-q", help="Search query."),
-    fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "-f"),
+    fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "--output", "-f"),
 ) -> None:
     """List available enrichments."""
     client = get_client()
@@ -59,7 +59,7 @@ def list_enrichments(
 @app.command("get")
 def get_enrichment(
     enrichment_id: int = typer.Argument(..., help="Enrichment ID."),
-    fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "-f"),
+    fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "--output", "-f"),
 ) -> None:
     """Get full details for an enrichment including parameters."""
     client = get_client()
@@ -99,11 +99,20 @@ def get_enrichment(
         output(rows, OutputFormat.TABLE, table_columns=["name", "type"])
 
 
+@app.command("info", hidden=True)
+def info_enrichment(
+    enrichment_id: int = typer.Argument(..., help="Enrichment ID."),
+    fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "--output", "-f"),
+) -> None:
+    """Alias for 'get'. Get full details for an enrichment including parameters."""
+    get_enrichment(enrichment_id, fmt)
+
+
 @app.command("run")
 def run_enrichment(
     enrichment_id: int = typer.Argument(..., help="Enrichment ID."),
     params_json: str = typer.Option(..., "--params", "-p", help='JSON params, e.g. \'{"email":"alice@example.com"}\''),
-    fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "-f"),
+    fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "--output", "-f"),
     raw: bool = typer.Option(False, "--raw", help="Print raw result without formatting."),
 ) -> None:
     """Run a single enrichment and wait for results."""
@@ -132,7 +141,7 @@ def run_enrichment(
 def bulk_enrichment(
     enrichment_id: int = typer.Argument(..., help="Enrichment ID."),
     input_file: Path = typer.Option(..., "--input", "-i", help="CSV file with one row per input.", exists=True),
-    fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "-f"),
+    fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "--output", "-f"),
     out: Optional[Path] = typer.Option(None, "--out", "-o", help="Output file (for CSV format)."),
 ) -> None:
     """Run a bulk enrichment from a CSV input file."""
@@ -159,7 +168,7 @@ def param_choices(
     query: Optional[str] = typer.Option(None, "--query", "-q", help="Filter choices."),
     page: int = typer.Option(1, "--page", help="Page number."),
     limit: int = typer.Option(50, "--limit", help="Results per page."),
-    fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "-f"),
+    fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "--output", "-f"),
 ) -> None:
     """List available choices for a select/mselect enrichment parameter."""
     client = get_client()

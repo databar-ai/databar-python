@@ -10,6 +10,7 @@ Key resolution order (same as MCP server):
 from __future__ import annotations
 
 import os
+import shutil
 from pathlib import Path
 
 import typer
@@ -87,10 +88,23 @@ def login(
     success(f"API key saved to {CONFIG_FILE}")
     console.print("[dim]Tip: You can also set DATABAR_API_KEY as an environment variable.[/dim]")
 
+    # Check if the databar binary is on PATH and print a hint if not
+    if shutil.which("databar") is None:
+        import sys
+        bin_dir = Path(sys.executable).parent
+        console.print(
+            f"\n[yellow]Note:[/yellow] The [bold]databar[/bold] command is not on your PATH.\n"
+            f"Add this to your shell profile ([dim]~/.zshrc[/dim] or [dim]~/.bashrc[/dim]):\n\n"
+            f"  [bold]export PATH=\"{bin_dir}:$PATH\"[/bold]\n\n"
+            f"Then restart your terminal, or run:\n\n"
+            f"  [bold]source ~/.zshrc[/bold]\n\n"
+            f"Until then, use the full path: [bold]{bin_dir}/databar[/bold]"
+        )
+
 
 @app.command("whoami")
 def whoami(
-    fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "-f", help="Output format.")
+    fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "--output", "-f", help="Output format.")
 ) -> None:
     """Show current user info and credit balance."""
     client = get_client()

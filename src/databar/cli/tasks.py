@@ -19,7 +19,7 @@ app = typer.Typer(help="Check the status of async tasks.")
 @app.command("get")
 def get_task(
     task_id: str = typer.Argument(..., help="Task ID returned by a run or bulk-run call."),
-    fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "-f"),
+    fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "--output", "-f"),
     poll: bool = typer.Option(
         False,
         "--poll",
