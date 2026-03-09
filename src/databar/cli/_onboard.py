@@ -6,7 +6,8 @@ Guides the user through:
   2. API key entry & verification
   3. PATH detection & optional auto-fix
   4. Usage preference (CLI / Python SDK / both)
-  5. Tailored next-steps cheatsheet
+  5. Optional ~/.claude/CLAUDE.md registration for Claude Code
+  6. Tailored next-steps cheatsheet
 """
 
 from __future__ import annotations
@@ -48,6 +49,11 @@ CONFIG_DIR = Path.home() / ".databar"
 CONFIG_FILE = CONFIG_DIR / "config"
 _KEY_PREFIX = "api_key="
 _PREF_PREFIX = "preferred_interface="
+
+CLAUDE_MD_DIR = Path.home() / ".claude"
+CLAUDE_MD_FILE = CLAUDE_MD_DIR / "CLAUDE.md"
+_CLAUDE_SENTINEL = "<!-- databar -->"
+_CLAUDE_STUB = """\n<!-- databar -->\n## Databar\nWhen the user asks you to use Databar, always run `databar agent-guide` first\nto get the full usage guide before doing anything else.\n<!-- /databar -->\n"""
 
 
 def _save_key(api_key: str) -> None:
@@ -224,6 +230,43 @@ def _step_preference() -> str:
     return pref
 
 
+def _step_claude_md() -> None:
+    """Optionally register Databar in the user's global ~/.claude/CLAUDE.md."""
+    console.print("[bold]Step 4 — Claude Code integration (optional)[/bold]\n")
+
+    already = (
+        CLAUDE_MD_FILE.exists()
+        and _CLAUDE_SENTINEL in CLAUDE_MD_FILE.read_text()
+    )
+    if already:
+        console.print(
+            "  [bold green]✓[/bold green] Databar is already registered in "
+            f"[dim]{CLAUDE_MD_FILE}[/dim].\n"
+        )
+        return
+
+    console.print(
+        f"  Adding a small entry to [bold]{CLAUDE_MD_FILE}[/bold] tells Claude Code\n"
+        "  to always run [bold]databar agent-guide[/bold] first, so it knows exactly\n"
+        "  how to use Databar without guessing.\n"
+    )
+    add = Confirm.ask(
+        "  Add Databar to your global Claude Code config (~/.claude/CLAUDE.md)?",
+        default=True,
+    )
+    if add:
+        CLAUDE_MD_DIR.mkdir(parents=True, exist_ok=True)
+        with open(CLAUDE_MD_FILE, "a") as f:
+            f.write(_CLAUDE_STUB)
+        console.print(
+            f"  [bold green]✓[/bold green] Added to {CLAUDE_MD_FILE}.\n"
+            "  Claude Code will now pick up Databar instructions automatically "
+            "in every project.\n"
+        )
+    else:
+        console.print("  [dim]Skipped.[/dim]\n")
+
+
 def _step_next_steps(pref: str) -> None:
     """Print tailored next steps based on preference."""
     console.print(Rule(style="cyan"))
@@ -283,6 +326,7 @@ def onboard() -> None:
         _step_api_key()
         _step_path()
         pref = _step_preference()
+        _step_claude_md()
         _step_next_steps(pref)
     except (KeyboardInterrupt, typer.Abort):
         console.print("\n\n[dim]Onboarding cancelled. Run `databar onboard` any time to restart.[/dim]")

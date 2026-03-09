@@ -87,10 +87,17 @@ class DatabarClient:
     ) -> None:
         resolved_key = api_key or os.environ.get("DATABAR_API_KEY")
         if not resolved_key:
-            raise DatabarAuthError(
+            import shutil
+            msg = (
                 "No API key provided. Pass api_key= or set the DATABAR_API_KEY "
                 "environment variable. Run `databar login` to save your key."
             )
+            if shutil.which("databar") is not None:
+                msg += (
+                    "\n\nUsing Databar with an AI agent (Claude Code, Cursor, etc.)? "
+                    "Run `databar agent-guide` for agent-optimized setup instructions."
+                )
+            raise DatabarAuthError(msg)
         self._api_key = resolved_key
         self._base_url = base_url.rstrip("/")
         self._timeout = timeout
