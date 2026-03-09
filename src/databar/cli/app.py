@@ -15,7 +15,10 @@ from ._auth import app as auth_app
 
 app = typer.Typer(
     name="databar",
-    help="Official Databar.ai CLI — run enrichments, manage tables, and more.",
+    help=(
+        "Official Databar.ai CLI — run enrichments, manage tables, and more.\n\n"
+        "[dim]Agent (Claude Code, Cursor, etc.)? Run [bold]databar agent-guide[/bold] first.[/dim]"
+    ),
     no_args_is_help=True,
     rich_markup_mode="rich",
 )

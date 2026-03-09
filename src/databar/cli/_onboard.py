@@ -49,6 +49,7 @@ CONFIG_DIR = Path.home() / ".databar"
 CONFIG_FILE = CONFIG_DIR / "config"
 _KEY_PREFIX = "api_key="
 _PREF_PREFIX = "preferred_interface="
+_WORKFLOW_PREFIX = "preferred_workflow="
 
 CLAUDE_MD_DIR = Path.home() / ".claude"
 CLAUDE_MD_FILE = CLAUDE_MD_DIR / "CLAUDE.md"
@@ -77,6 +78,17 @@ def _save_preference(pref: str) -> None:
             if not l.startswith(_PREF_PREFIX)
         ]
     lines.append(f"{_PREF_PREFIX}{pref}")
+    CONFIG_FILE.write_text("\n".join(lines) + "\n")
+
+
+def _save_workflow(workflow: str) -> None:
+    lines: list[str] = []
+    if CONFIG_FILE.exists():
+        lines = [
+            l for l in CONFIG_FILE.read_text().splitlines()
+            if not l.startswith(_WORKFLOW_PREFIX)
+        ]
+    lines.append(f"{_WORKFLOW_PREFIX}{workflow}")
     CONFIG_FILE.write_text("\n".join(lines) + "\n")
 
 
@@ -216,16 +228,31 @@ def _step_path() -> None:
 
 
 def _step_preference() -> str:
-    """Ask how the user plans to use Databar and return their choice."""
+    """Ask interface preference and workflow preference. Returns interface choice."""
     console.print("[bold]Step 3 — How do you plan to use Databar?[/bold]\n")
+    console.print("  [bold cyan]Interface[/bold cyan]\n")
     console.print("  [bold cyan]1[/bold cyan]  CLI       — terminal commands, scripts, AI agents (Claude Code etc.)")
     console.print("  [bold cyan]2[/bold cyan]  Python    — import DatabarClient in your Python code")
-    console.print("  [bold cyan]3[/bold cyan]  Both      — I'll use whichever fits the task\n")
+    console.print("  [bold cyan]3[/bold cyan]  MCP       — use Databar MCP tools if configured in your agent")
+    console.print("  [bold cyan]4[/bold cyan]  Both/all  — I'll use whichever fits the task\n")
 
-    choice = Prompt.ask("  Your choice", choices=["1", "2", "3"], default="3")
-    pref_map = {"1": "cli", "2": "python", "3": "both"}
+    choice = Prompt.ask("  Your choice", choices=["1", "2", "3", "4"], default="1")
+    pref_map = {"1": "cli", "2": "python", "3": "mcp", "4": "both"}
     pref = pref_map[choice]
     _save_preference(pref)
+
+    console.print()
+    console.print("  [bold cyan]Workflow[/bold cyan]\n")
+    console.print("  [bold cyan]1[/bold cyan]  Direct      — submit inputs, get results back immediately")
+    console.print("                  Best for one-off lookups or bulk CSV jobs")
+    console.print("  [bold cyan]2[/bold cyan]  Table-based — create a table, upload rows, attach + run enrichments")
+    console.print("                  Results appear as columns in the Databar UI")
+    console.print("                  Best for observability, re-running, or pairing with the web interface\n")
+
+    wf_choice = Prompt.ask("  Your choice", choices=["1", "2"], default="1")
+    workflow = "direct" if wf_choice == "1" else "table"
+    _save_workflow(workflow)
+
     console.print()
     return pref
 

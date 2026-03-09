@@ -1,7 +1,13 @@
 # Databar SDK & CLI — Claude Code Guide
 
-Databar is a data enrichment platform. The `databar` package ships both a **CLI** and a
-**Python SDK**. Follow the steps below in order on every new session.
+Databar is a data enrichment platform. Given an input (email, LinkedIn URL, company
+domain, etc.) it returns enriched data from dozens of providers. The `databar` package
+ships three interfaces: a **CLI**, a **Python SDK**, and an **MCP server**.
+
+Databar supports two enrichment workflows:
+
+- **Direct** — submit inputs, get results back immediately. Best for one-off lookups or bulk CSV jobs.
+- **Table-based** — create a table, upload rows, attach enrichments, run them. Results appear as new columns. Best for observability, re-running enrichments, or pairing with the Databar web UI.
 
 ---
 
@@ -30,22 +36,34 @@ databar whoami --format json    # verify
 
 ---
 
-## STEP 2 — Ask the user which interface they prefer
+## STEP 2 — Ask the user their preferred interface AND workflow
 
 Unless `~/.databar/config` already contains `preferred_interface=`, ask the user:
 
-> "Databar has two interfaces — which do you prefer?
+> "Databar has three interfaces — which do you prefer?
 >
 > - **CLI** (default) — terminal commands, pipeable JSON output, no code to write.
 >   Best for single operations: run an enrichment, insert rows, list tables.
 > - **Python SDK** — required when you need conditional logic (e.g. only enrich
 >   verified emails), loops over results, or multi-step pipelines with branching.
-> - **Both** — CLI for simple lookups, Python for complex workflows."
+> - **MCP** — if Databar MCP tools are available in this session, use them — most
+>   agent-native option, zero setup required."
 
-Default to **CLI** if they don't specify. Save their answer:
+Also ask about workflow preference:
+
+> "Databar supports two enrichment workflows — which fits your use case?
+>
+> - **Direct** (default) — submit inputs, get results back immediately. Good for
+>   one-off lookups or bulk CSV jobs where you just need the output.
+> - **Table-based** — create a table, upload rows, attach enrichments, then run them.
+>   Results appear as new columns in the Databar UI. Best when you want observability,
+>   plan to re-run enrichments, or want to pair with the Databar web interface."
+
+Default to **CLI + Direct** if the user doesn't specify. Save their answers:
 
 ```bash
-echo "preferred_interface=cli" >> ~/.databar/config    # or: python, both
+echo "preferred_interface=cli" >> ~/.databar/config     # or: python, mcp, both
+echo "preferred_workflow=direct" >> ~/.databar/config   # or: table
 ```
 
 ---
