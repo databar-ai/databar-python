@@ -30,6 +30,14 @@ app.add_typer(tables.app, name="table")
 app.add_typer(tasks.app, name="task")
 
 
+@app.command("agent-guide")
+def agent_guide() -> None:
+    """Print the full agent usage guide (SDK + CLI reference for AI agents)."""
+    from ._guide import AGENT_GUIDE
+
+    typer.echo(AGENT_GUIDE)
+
+
 def _version_callback(value: bool) -> None:
     if value:
         typer.echo(f"databar {__version__}")

@@ -43,6 +43,7 @@ from .models import (
     EnrichmentSummary,
     InsertOptions,
     InsertRow,
+    RowsResponse,
     RunResponse,
     Table,
     TableEnrichment,
@@ -522,20 +523,22 @@ class DatabarClient:
         table_uuid: str,
         page: int = 1,
         per_page: int = 100,
-    ) -> Dict[str, Any]:
+    ) -> RowsResponse:
         """
         Get rows from a table with pagination.
 
-        Returns a dict with keys: ``data`` (list of row dicts), ``has_next_page``,
-        ``total_count``, ``page``.  Each row dict is keyed by column name.
+        Returns a :class:`RowsResponse` with ``.data`` (list of row dicts),
+        ``.has_next_page``, ``.total_count``, ``.page``.
+        Each row dict is keyed by column name and includes an ``id`` key.
 
         ``per_page`` max is 500 (API limit). Default is 100.
         """
-        return self._request(
+        data = self._request(
             "GET",
             f"/table/{table_uuid}/rows",
             params={"page": page, "per_page": per_page},
         )
+        return RowsResponse.model_validate(data)
 
     def create_rows(
         self,

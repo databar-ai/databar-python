@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "databar"
-version = "2.0.4"
+version = "2.0.5"
 description = "Official Databar.ai Python SDK and CLI — connect to enrichments, waterfalls, and tables via api.databar.ai"
 readme = "README.md"
 license = { file = "LICENSE" }

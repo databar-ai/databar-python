@@ -298,6 +298,38 @@ class TableEnrichment(BaseModel):
 
 
 # ===========================================================================
+# Rows — Query
+# ===========================================================================
+
+
+class RowsResponse(BaseModel):
+    """Paginated rows returned by get_rows().
+
+    Fields: data, has_next_page, total_count, page.
+
+    Property alias: .rows → .data.
+
+    Usage::
+
+        resp = client.get_rows(table.identifier)
+        for row in resp.data:
+            print(row["email"])
+        if resp.has_next_page:
+            resp2 = client.get_rows(table.identifier, page=2)
+    """
+
+    data: List[Dict[str, Any]] = Field(description="List of row dicts keyed by column name. Each row also has an 'id' key with the row UUID.")
+    has_next_page: bool = Field(default=False)
+    total_count: int = Field(default=0)
+    page: int = Field(default=1)
+
+    @property
+    def rows(self) -> List[Dict[str, Any]]:
+        """Alias for data."""
+        return self.data
+
+
+# ===========================================================================
 # Rows — Insert
 # ===========================================================================
 
