@@ -84,7 +84,7 @@ for param in enrichment.params:
 
 # Run single enrichment (async — returns task)
 task = client.run_enrichment(123, {"email": "alice@example.com"})
-data = client.poll_task(task.request_id)
+data = client.poll_task(task.task_id)
 
 # Run single enrichment (sync convenience wrapper)
 data = client.run_enrichment_sync(123, {"email": "alice@example.com"})

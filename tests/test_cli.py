@@ -110,7 +110,7 @@ def _client_mock(**method_overrides):
     m.get_table_enrichments.return_value = [TableEnrichment(id=5, name="My Enrichment")]
     m.add_enrichment.return_value = {"status": "ok"}
     m.run_table_enrichment.return_value = {"status": "triggered"}
-    m.get_task.return_value = TaskResponse(request_id="t1", status="completed", data={"result": "ok"})
+    m.get_task.return_value = TaskResponse(task_id="t1", status="completed", data={"result": "ok"})
     m.poll_task.return_value = {"result": "ok"}
 
     for method, return_value in method_overrides.items():
@@ -329,4 +329,4 @@ def test_task_get_poll(monkeypatch):
 def test_version_flag():
     result = runner.invoke(app, ["--version"])
     assert result.exit_code == 0
-    assert "2.0.0" in result.output
+    assert "2.0.1" in result.output

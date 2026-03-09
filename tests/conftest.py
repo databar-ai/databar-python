@@ -75,7 +75,7 @@ def enrichment_payload(id: int = 1, **overrides) -> dict:
 
 def task_payload(status: str = "processing", task_id: str = "task-123", data=None) -> dict:
     return {
-        "request_id": task_id,
+        "task_id": task_id,
         "status": status,
         "data": data,
         "error": None,

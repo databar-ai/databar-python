@@ -29,6 +29,7 @@ from databar.models import (
     BatchUpdateResponse,
     BatchUpdateRow,
     InsertRow,
+    RunResponse,
     UpsertResponse,
     UpsertRow,
 )
@@ -150,7 +151,7 @@ def test_get_enrichment(client: DatabarClient, httpx_mock: HTTPXMock):
 def test_run_enrichment_returns_task(client: DatabarClient, httpx_mock: HTTPXMock):
     httpx_mock.add_response(url=f"{BASE_URL}/enrichments/1/run", json=task_payload("processing"))
     task = client.run_enrichment(1, {"email": "test@example.com"})
-    assert task.request_id == "task-123"
+    assert task.task_id == "task-123"
     assert task.status == "processing"
 
 
@@ -163,7 +164,7 @@ def test_run_enrichment_sync(client: DatabarClient, httpx_mock: HTTPXMock):
 
 def test_run_enrichment_sync_failed(client: DatabarClient, httpx_mock: HTTPXMock):
     httpx_mock.add_response(url=f"{BASE_URL}/enrichments/1/run", json=task_payload("processing"))
-    httpx_mock.add_response(url=f"{BASE_URL}/tasks/task-123", json={"request_id": "task-123", "status": "failed", "data": None, "error": "upstream error"})
+    httpx_mock.add_response(url=f"{BASE_URL}/tasks/task-123", json={"task_id": "task-123", "status": "failed", "data": None, "error": "upstream error"})
     with pytest.raises(DatabarTaskFailedError, match="upstream error"):
         client.run_enrichment_sync(1, {"email": "test@example.com"})
 
@@ -193,7 +194,7 @@ def test_run_waterfall_auto_resolves_providers(client: DatabarClient, httpx_mock
     httpx_mock.add_response(url=f"{BASE_URL}/waterfalls/email_getter", json=waterfall_payload())
     httpx_mock.add_response(url=f"{BASE_URL}/waterfalls/email_getter/run", json=task_payload("processing"))
     task = client.run_waterfall("email_getter", {"linkedin_url": "https://linkedin.com/in/alice"})
-    assert task.request_id == "task-123"
+    assert task.task_id == "task-123"
     req = httpx_mock.get_requests()[-1]
     body = json.loads(req.content)
     assert body["enrichments"] == [10, 11]

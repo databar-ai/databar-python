@@ -42,6 +42,7 @@ from .models import (
     EnrichmentSummary,
     InsertOptions,
     InsertRow,
+    RunResponse,
     Table,
     TableEnrichment,
     TaskResponse,
@@ -270,31 +271,31 @@ class DatabarClient:
         data = self._request("GET", f"/enrichments/{enrichment_id}")
         return Enrichment.model_validate(data)
 
-    def run_enrichment(self, enrichment_id: int, params: Dict[str, Any]) -> TaskResponse:
+    def run_enrichment(self, enrichment_id: int, params: Dict[str, Any]) -> RunResponse:
         """Submit an enrichment run. Returns a task — use poll_task() or run_enrichment_sync()."""
         data = self._request("POST", f"/enrichments/{enrichment_id}/run", json={"params": params})
-        return TaskResponse.model_validate(data)
+        return RunResponse.model_validate(data)
 
     def run_enrichment_bulk(
         self, enrichment_id: int, params: List[Dict[str, Any]]
-    ) -> TaskResponse:
+    ) -> RunResponse:
         """Submit a bulk enrichment run for multiple inputs."""
         data = self._request("POST", f"/enrichments/{enrichment_id}/bulk-run", json={"params": params})
-        return TaskResponse.model_validate(data)
+        return RunResponse.model_validate(data)
 
     def run_enrichment_sync(
         self, enrichment_id: int, params: Dict[str, Any]
     ) -> Any:
         """Submit and poll an enrichment, returning final data when complete."""
         task = self.run_enrichment(enrichment_id, params)
-        return self.poll_task(task.request_id)
+        return self.poll_task(task.task_id)
 
     def run_enrichment_bulk_sync(
         self, enrichment_id: int, params: List[Dict[str, Any]]
     ) -> Any:
         """Submit and poll a bulk enrichment, returning final data when complete."""
         task = self.run_enrichment_bulk(enrichment_id, params)
-        return self.poll_task(task.request_id)
+        return self.poll_task(task.task_id)
 
     def get_param_choices(
         self,
@@ -335,7 +336,7 @@ class DatabarClient:
         params: Dict[str, Any],
         enrichments: Optional[List[int]] = None,
         email_verifier: Optional[int] = None,
-    ) -> TaskResponse:
+    ) -> RunResponse:
         """
         Submit a waterfall run.
 
@@ -351,7 +352,7 @@ class DatabarClient:
             payload["email_verifier"] = email_verifier
 
         data = self._request("POST", f"/waterfalls/{identifier}/run", json=payload)
-        return TaskResponse.model_validate(data)
+        return RunResponse.model_validate(data)
 
     def run_waterfall_bulk(
         self,
@@ -359,7 +360,7 @@ class DatabarClient:
         params: List[Dict[str, Any]],
         enrichments: Optional[List[int]] = None,
         email_verifier: Optional[int] = None,
-    ) -> TaskResponse:
+    ) -> RunResponse:
         """Submit a bulk waterfall run for multiple inputs."""
         if not enrichments:
             waterfall = self.get_waterfall(identifier)
@@ -370,7 +371,7 @@ class DatabarClient:
             payload["email_verifier"] = email_verifier
 
         data = self._request("POST", f"/waterfalls/{identifier}/bulk-run", json=payload)
-        return TaskResponse.model_validate(data)
+        return RunResponse.model_validate(data)
 
     def run_waterfall_sync(
         self,
@@ -381,7 +382,7 @@ class DatabarClient:
     ) -> Any:
         """Submit and poll a waterfall, returning final data when complete."""
         task = self.run_waterfall(identifier, params, enrichments, email_verifier)
-        return self.poll_task(task.request_id)
+        return self.poll_task(task.task_id)
 
     def run_waterfall_bulk_sync(
         self,
@@ -392,7 +393,7 @@ class DatabarClient:
     ) -> Any:
         """Submit and poll a bulk waterfall, returning final data when complete."""
         task = self.run_waterfall_bulk(identifier, params, enrichments, email_verifier)
-        return self.poll_task(task.request_id)
+        return self.poll_task(task.task_id)
 
     # -----------------------------------------------------------------------
     # Tables

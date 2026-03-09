@@ -104,8 +104,24 @@ class TaskStatus(str, Enum):
     GONE = "gone"
 
 
+class RunResponse(BaseModel):
+    """Returned by all /run and /bulk-run endpoints. Contains the task_id to poll."""
+
+    task_id: str = Field(description="Unique identifier of the submitted task.")
+    status: str = Field(default="processing")
+
+
 class TaskResponse(BaseModel):
-    request_id: str = Field(description="Unique identifier of the request.")
+    """Returned by GET /v1/tasks/{task_id}.
+
+    The backend currently uses 'request_id' as the field name; this model
+    accepts both 'task_id' and 'request_id' so it works before and after
+    the backend renames the field.
+    """
+
+    task_id: str = Field(
+        description="Unique identifier of the task.",
+    )
     status: str = Field(
         description="Current status: processing, completed, failed, or gone."
     )
@@ -114,6 +130,13 @@ class TaskResponse(BaseModel):
         description="Resulting data once completed.",
     )
     error: Optional[Union[str, List[str]]] = None
+    credits_spent: float = 0
+
+    @classmethod
+    def model_validate(cls, obj: Any, **kwargs: Any) -> "TaskResponse":
+        if isinstance(obj, dict) and "task_id" not in obj and "request_id" in obj:
+            obj = {**obj, "task_id": obj["request_id"]}
+        return super().model_validate(obj, **kwargs)
 
 
 # ===========================================================================

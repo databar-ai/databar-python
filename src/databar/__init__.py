@@ -45,6 +45,7 @@ from .models import (
     EnrichmentSummary,
     InsertOptions,
     InsertRow,
+    RunResponse,
     Table,
     TableEnrichment,
     TaskResponse,
@@ -56,7 +57,7 @@ from .models import (
     WaterfallEnrichment,
 )
 
-__version__ = "2.0.0"
+__version__ = "2.0.1"
 __all__ = [
     "DatabarClient",
     # exceptions
@@ -78,6 +79,7 @@ __all__ = [
     "ChoiceItem",
     "Choices",
     "ChoicesResponse",
+    "RunResponse",
     "TaskResponse",
     "TaskStatus",
     "Waterfall",
