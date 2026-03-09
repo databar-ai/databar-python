@@ -30,6 +30,14 @@ app.add_typer(tables.app, name="table")
 app.add_typer(tasks.app, name="task")
 
 
+@app.command("onboard")
+def onboard() -> None:
+    """Interactive setup wizard — configure auth, PATH, and get started."""
+    from ._onboard import onboard as _run_onboard
+
+    _run_onboard()
+
+
 @app.command("agent-guide")
 def agent_guide() -> None:
     """Print the full agent usage guide (SDK + CLI reference for AI agents)."""
