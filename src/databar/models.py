@@ -153,7 +153,7 @@ class WaterfallEnrichment(BaseModel):
 
 
 class Waterfall(BaseModel):
-    identifier: str
+    identifier: str = Field(description="Slug-style identifier, e.g. 'email_getter'. Use this when calling run_waterfall().")
     name: str
     description: str
     input_params: List[Dict[str, Any]]
@@ -161,6 +161,11 @@ class Waterfall(BaseModel):
     available_enrichments: List[WaterfallEnrichment]
     is_email_verifying: bool
     email_verifiers: List[Any]
+
+    @property
+    def slug(self) -> str:
+        """Alias for identifier."""
+        return self.identifier
 
 
 # ===========================================================================
