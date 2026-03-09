@@ -94,6 +94,8 @@ databar table add-enrichment <table-uuid> --enrichment-id 123 --mapping '{"email
 databar table run-enrichment <table-uuid> --enrichment-id <table-enrichment-id>
 ```
 
+> **Note:** `--enrichment-id` in `run-enrichment` is the **table-enrichment ID** returned by `add-enrichment` (or `table enrichments`), NOT the original enrichment catalog ID.
+
 ### Tasks
 
 Enrichment and waterfall runs are async — they return a `task_id`. Use these to check results:
@@ -182,6 +184,48 @@ Results are stored for **1 hour only**. After that, `GET /v1/tasks/{task_id}` re
 --format table   # rich table (default, human-readable)
 --format json    # JSON array, pipeable to jq
 --format csv     # CSV, use with --out results.csv
+```
+
+> **Important for agents:** Always pass `--format json` (or `--output json`) when you need to parse or pipe CLI output. The default `table` format contains Rich terminal formatting that is not machine-parseable.
+
+---
+
+## Table Enrichments Workflow
+
+Adding an enrichment to a table is a two-step process:
+
+1. **Add the enrichment** — links the enrichment to the table and configures the column mapping.
+2. **Run the enrichment** — triggers execution on all rows using the **table-enrichment ID** (not the catalog enrichment ID).
+
+```bash
+# 1. Find the right enrichment
+databar enrich list --query "email verifier"
+databar enrich get <enrichment-id>     # see param names
+
+# 2. See your table columns
+databar table columns <table-uuid>
+
+# 3. Add enrichment — mapping keys = enrichment param names, values = column names
+databar table add-enrichment <table-uuid> \
+  --enrichment-id <enrichment-id> \
+  --mapping '{"email": {"type": "mapping", "value": "email_column_name"}}'
+# → Returns a table-enrichment-id (different from the catalog enrichment-id)
+
+# 4. Run it using the table-enrichment-id
+databar table run-enrichment <table-uuid> --enrichment-id <table-enrichment-id>
+```
+
+SDK equivalent:
+
+```python
+# Add enrichment — pass column names; SDK auto-resolves to UUIDs
+te = client.add_enrichment(
+    table_uuid,
+    enrichment_id=123,
+    mapping={"email": {"type": "mapping", "value": "email"}}  # "email" is the column name
+)
+# te.id is the TABLE-ENRICHMENT id — use this for run_table_enrichment
+client.run_table_enrichment(table_uuid, str(te.id))
 ```
 
 ---

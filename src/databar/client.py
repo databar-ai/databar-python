@@ -16,6 +16,7 @@ in databar_mcp/src/databar-client.ts.
 from __future__ import annotations
 
 import os
+import re
 import time
 from typing import Any, Dict, List, Optional
 
@@ -438,10 +439,65 @@ class DatabarClient:
         table_uuid: str,
         enrichment_id: int,
         mapping: Dict[str, Any],
-    ) -> Any:
-        """Add an enrichment to a table with a parameter-to-column mapping."""
-        payload = {"enrichment": enrichment_id, "mapping": mapping}
-        return self._request("POST", f"/table/{table_uuid}/add-enrichment", json=payload)
+    ) -> TableEnrichment:
+        """
+        Add an enrichment to a table with a parameter-to-column mapping.
+
+        ``mapping`` keys are enrichment parameter names. Values are dicts with:
+          - ``{"type": "mapping", "value": "<column-name-or-uuid>"}``
+            — reads the value from a table column per row.
+            You may pass a human-readable column name; the SDK will automatically
+            resolve it to the required column UUID via GET /table/{uuid}/columns.
+          - ``{"type": "simple", "value": "<static-value>"}``
+            — uses the same hardcoded value for every row.
+
+        Returns the newly added :class:`TableEnrichment` (with ``id`` and ``name``),
+        resolved by diffing enrichments before and after the add.
+        """
+        # Auto-resolve column names → UUIDs for mapping-type entries
+        resolved_mapping: Dict[str, Any] = {}
+        column_map: Optional[Dict[str, str]] = None  # name → uuid, built lazily
+
+        for param, entry in mapping.items():
+            if not isinstance(entry, dict) or entry.get("type") != "mapping":
+                resolved_mapping[param] = entry
+                continue
+
+            value = entry.get("value", "")
+            # Looks like a UUID already — 8-4-4-4-12 hex pattern
+            if re.fullmatch(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", str(value), re.IGNORECASE):
+                resolved_mapping[param] = entry
+                continue
+
+            # Build the column name→uuid map once
+            if column_map is None:
+                columns = self.get_columns(table_uuid)
+                column_map = {c.name: c.identifier for c in columns}
+
+            uuid = column_map.get(value)
+            if uuid is None:
+                # Not a known column name — pass through and let the API surface the error
+                resolved_mapping[param] = entry
+            else:
+                resolved_mapping[param] = {**entry, "value": uuid}
+
+        # Snapshot existing enrichment IDs so we can detect the new one
+        before_ids = {e.id for e in self.get_table_enrichments(table_uuid)}
+
+        payload = {"enrichment": enrichment_id, "mapping": resolved_mapping}
+        self._request("POST", f"/table/{table_uuid}/add-enrichment", json=payload)
+
+        # Fetch updated list and return the newly created TableEnrichment
+        after = self.get_table_enrichments(table_uuid)
+        new_enrichments = [e for e in after if e.id not in before_ids]
+        if new_enrichments:
+            return new_enrichments[-1]
+
+        # Fallback: return the last enrichment in the list if we can't detect which is new
+        if after:
+            return after[-1]
+
+        raise DatabarError("Enrichment was added but could not be retrieved. Use get_table_enrichments() to fetch it manually.")
 
     def run_table_enrichment(
         self,
