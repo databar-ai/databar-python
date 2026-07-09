@@ -261,7 +261,12 @@ class TaskResponse(BaseModel):
     )
     data: Optional[Union[List[Any], Dict[str, Any]]] = Field(
         default=None,
-        description="Resulting data once completed.",
+        description=(
+            "Resulting data once completed. For bulk runs this is a list aligned to "
+            "the inputs: one element per input in input order, with null for inputs "
+            "that returned no data (len(data) == number of inputs). A single run "
+            "returns the bare result object."
+        ),
     )
     error: Optional[Union[str, List[str]]] = None
     credits_spent: float = 0

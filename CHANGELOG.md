@@ -4,6 +4,20 @@ All notable changes to the Databar Python SDK are documented here.
 
 ---
 
+## [Unreleased]
+
+### Changed
+
+- **Bulk results are now aligned to inputs.** `run_enrichment_bulk_sync`,
+  `run_waterfall_bulk_sync`, and `poll_task` now return a list with one element
+  per input, in the original input order, with `None` for inputs that returned
+  no data (`len(results) == len(inputs)`, `results[i]` ↔ `inputs[i]`). Previously
+  only hits were returned, in no guaranteed order, making it impossible to map a
+  result back to its input. This is a **breaking change** to the bulk output
+  shape; single (non-bulk) runs are unchanged.
+
+---
+
 ## [2.1.0] — 2026-04-09
 
 ### Full parity with user_api (api.databar.ai/v1)

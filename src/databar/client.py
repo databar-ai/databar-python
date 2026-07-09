@@ -265,6 +265,11 @@ class DatabarClient:
         Returns the task's data payload on success (status completed or partially_completed).
         Raises DatabarTaskFailedError, DatabarGoneError or DatabarTimeoutError otherwise.
 
+        For bulk runs the payload is a list aligned to the inputs: one element
+        per input in input order, with ``None`` for inputs that returned no data
+        (so ``len(data) == number of inputs`` and ``data[i]`` ↔ ``input[i]``). A
+        single run returns the bare result object.
+
         Task data is stored for 24 hours. After that the status becomes 'gone'.
         """
         for _ in range(self._max_poll_attempts):
@@ -383,6 +388,11 @@ class DatabarClient:
         """
         Submit a bulk enrichment run for multiple inputs.
 
+        The polled result is aligned to the inputs: one element per input, in the
+        same order as ``params``, with ``None`` for inputs that returned no data.
+        So ``len(result) == len(params)`` and ``result[i]`` is the result for
+        ``params[i]`` — join results back to inputs by position.
+
         Args:
             enrichment_id: The enrichment to run.
             params: List of per-row input parameter dicts.
@@ -410,7 +420,11 @@ class DatabarClient:
         params: List[Dict[str, Any]],
         pages: Optional[int] = None,
     ) -> Any:
-        """Submit and poll a bulk enrichment, returning final data when complete."""
+        """Submit and poll a bulk enrichment, returning final data when complete.
+
+        Returns a list aligned to ``params``: one element per input in input
+        order, ``None`` for misses (``len(result) == len(params)``).
+        """
         task = self.run_enrichment_bulk(enrichment_id, params, pages=pages)
         return self.poll_task(task.task_id)
 
@@ -478,7 +492,12 @@ class DatabarClient:
         enrichments: Optional[List[int]] = None,
         email_verifier: Optional[int] = None,
     ) -> RunResponse:
-        """Submit a bulk waterfall run for multiple inputs."""
+        """Submit a bulk waterfall run for multiple inputs.
+
+        The polled result is aligned to the inputs: one element per input, in the
+        same order as ``params``, with ``None`` for inputs that returned no data
+        (``len(result) == len(params)``, ``result[i]`` ↔ ``params[i]``).
+        """
         if not enrichments:
             waterfall = self.get_waterfall(identifier)
             enrichments = [e.id for e in waterfall.available_enrichments]
@@ -508,7 +527,11 @@ class DatabarClient:
         enrichments: Optional[List[int]] = None,
         email_verifier: Optional[int] = None,
     ) -> Any:
-        """Submit and poll a bulk waterfall, returning final data when complete."""
+        """Submit and poll a bulk waterfall, returning final data when complete.
+
+        Returns a list aligned to ``params``: one element per input in input
+        order, ``None`` for misses (``len(result) == len(params)``).
+        """
         task = self.run_waterfall_bulk(identifier, params, enrichments, email_verifier)
         return self.poll_task(task.task_id)
 

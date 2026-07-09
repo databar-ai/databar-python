@@ -99,7 +99,8 @@ data = client.run_enrichment_sync(123, {"email": "alice@example.com"})
 # Run with pagination (for list-style enrichments)
 data = client.run_enrichment_sync(123, {"query": "CEO"}, pages=3)
 
-# Bulk run
+# Bulk run — results are aligned to inputs: one element per input, in input
+# order, with None for inputs that returned no data (len(data) == len(inputs)).
 data = client.run_enrichment_bulk_sync(123, [
     {"email": "alice@example.com"},
     {"email": "bob@example.com"},
