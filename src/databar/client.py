@@ -15,6 +15,7 @@ Endpoint groups:
   - Enrichments: list_enrichments, get_enrichment, run_enrichment[_bulk][_sync],
                  get_param_choices
   - Waterfalls:  list_waterfalls, get_waterfall, run_waterfall[_bulk][_sync]
+  - Flows:       list_flows, get_flow, run_flow[_sync]
   - Tables:      create_table, list_tables, delete_table, rename_table,
                  get_columns, create_column, rename_column, delete_column,
                  get_table_enrichments, add_enrichment, run_table_enrichment,
@@ -70,6 +71,7 @@ from .models import (
     ExporterListResponse,
     ExporterParam,
     ExporterResponseField,
+    Flow,
     Folder,
     InsertOptions,
     InsertRow,
@@ -533,6 +535,37 @@ class DatabarClient:
         order, ``None`` for misses (``len(result) == len(params)``).
         """
         task = self.run_waterfall_bulk(identifier, params, enrichments, email_verifier)
+        return self.poll_task(task.task_id)
+
+    # -----------------------------------------------------------------------
+    # Flows
+    # -----------------------------------------------------------------------
+
+    def list_flows(self) -> List[Flow]:
+        """List all saved flows in the workspace."""
+        data = self._request("GET", "/flows")
+        return [Flow.model_validate(f) for f in data]
+
+    def get_flow(self, flow_id: str) -> Flow:
+        """Get details for a specific flow, including its declared inputs."""
+        data = self._request("GET", f"/flows/{flow_id}")
+        return Flow.model_validate(data)
+
+    def run_flow(self, flow_id: str, inputs: Dict[str, str]) -> RunResponse:
+        """
+        Submit a flow run. Returns a task — use poll_task() or run_flow_sync().
+
+        Args:
+            flow_id: The flow UUID (from list_flows / get_flow).
+            inputs: Maps each flow input id → value. See get_flow() for the
+                list of declared inputs.
+        """
+        data = self._request("POST", f"/flows/{flow_id}/run", json={"inputs": inputs})
+        return RunResponse.model_validate(data)
+
+    def run_flow_sync(self, flow_id: str, inputs: Dict[str, str]) -> Any:
+        """Submit and poll a flow, returning final data when complete."""
+        task = self.run_flow(flow_id, inputs)
         return self.poll_task(task.task_id)
 
     # -----------------------------------------------------------------------

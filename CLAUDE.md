@@ -119,6 +119,17 @@ databar waterfall run <identifier> --params '{"key": "value"}' --format json
 databar waterfall bulk <identifier> --input data.csv --out results.csv
 ```
 
+### Flows
+
+```bash
+databar flow list --format json
+databar flow get <flow-id> --format json                       # declared inputs
+databar flow run <flow-id> --inputs '{"input_id": "value"}' --format json
+```
+
+> `flow run` uses `--inputs` (maps each flow input id → value), NOT `--params`.
+> Run `flow get <flow-id>` to see the declared inputs.
+
 ### Tables
 
 ```bash
@@ -174,6 +185,13 @@ waterfalls = client.list_waterfalls()
 # waterfall.identifier (also .slug) → e.g. "email_getter"
 result = client.run_waterfall_sync("email_getter", {"linkedin_url": "..."})
 
+# Flows
+flows = client.list_flows()
+flow = client.get_flow("flow-uuid")
+# flow.id (also .identifier) → flow UUID
+# flow.inputs[i].id → input key to use in the run inputs dict
+result = client.run_flow_sync("flow-uuid", {"email": "alice@example.com"})
+
 # Tables
 tables = client.list_tables()
 # table.identifier (also .id, .uuid) → UUID string
@@ -204,6 +222,7 @@ client.create_rows(table.identifier, [InsertRow(fields={"email": "alice@example.
 |---|---|---|
 | `Table` | `.id`, `.uuid` | `.identifier` |
 | `Waterfall` | `.slug` | `.identifier` |
+| `Flow` | `.identifier` | `.id` |
 | `EnrichmentParam` | `.slug` | `.name` |
 | `EnrichmentParam` | `.label` | `.description` |
 | `EnrichmentParam` | `.required` | `.is_required` |

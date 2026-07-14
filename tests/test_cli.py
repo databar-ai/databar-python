@@ -28,6 +28,8 @@ from databar.models import (
     Enrichment,
     EnrichmentParam,
     EnrichmentSummary,
+    Flow,
+    FlowInput,
     Table,
     TableEnrichment,
     TaskResponse,
@@ -87,6 +89,18 @@ def _client_mock(**method_overrides):
     m.get_waterfall.return_value = m.list_waterfalls.return_value[0]
     m.run_waterfall_sync.return_value = [{"email": "alice@example.com"}]
     m.run_waterfall_bulk_sync.return_value = [{"email": "alice@example.com"}]
+
+    m.list_flows.return_value = [
+        Flow(
+            id="flow-uuid-1",
+            name="Find buyer",
+            description="Enrich a lead",
+            inputs=[FlowInput(id="email", description="Email", type="text", required=True)],
+            outputs=[],
+        )
+    ]
+    m.get_flow.return_value = m.list_flows.return_value[0]
+    m.run_flow_sync.return_value = {"full_name": "Alice"}
 
     m.list_tables.return_value = [
         Table(identifier="tbl-1", name="My Table", created_at="2024-01-01", updated_at="2024-01-01")
@@ -242,6 +256,36 @@ def test_waterfall_run(monkeypatch):
 
 
 # ===========================================================================
+# Flows
+# ===========================================================================
+
+
+def test_flow_list(monkeypatch):
+    mock = _client_mock()
+    monkeypatch.setattr("databar.cli.flows.get_client", lambda: mock)
+    result = invoke(["flow", "list"])
+    assert result.exit_code == 0
+    assert "flow-uuid-1" in result.output
+    assert "Find buyer" in result.output
+
+
+def test_flow_get(monkeypatch):
+    mock = _client_mock()
+    monkeypatch.setattr("databar.cli.flows.get_client", lambda: mock)
+    result = invoke(["flow", "get", "flow-uuid-1"])
+    assert result.exit_code == 0
+    assert "Find buyer" in result.output
+
+
+def test_flow_run(monkeypatch):
+    mock = _client_mock()
+    monkeypatch.setattr("databar.cli.flows.get_client", lambda: mock)
+    result = invoke(["flow", "run", "flow-uuid-1", "--inputs", '{"email":"alice@example.com"}'])
+    assert result.exit_code == 0
+    mock.run_flow_sync.assert_called_once_with("flow-uuid-1", {"email": "alice@example.com"})
+
+
+# ===========================================================================
 # Tables
 # ===========================================================================
 
@@ -329,4 +373,4 @@ def test_task_get_poll(monkeypatch):
 def test_version_flag():
     result = runner.invoke(app, ["--version"])
     assert result.exit_code == 0
-    assert "2.0.9" in result.output
+    assert "2.2.0" in result.output

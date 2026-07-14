@@ -131,6 +131,21 @@ def waterfall_payload(identifier: str = "email_getter", **overrides) -> dict:
     }
 
 
+def flow_payload(flow_id: str = "flow-uuid-1", **overrides) -> dict:
+    return {
+        "id": flow_id,
+        "name": "Find buyer",
+        "description": "Enrich a lead through several steps",
+        "inputs": [
+            {"id": "email", "description": "Email address", "type": "text", "required": True}
+        ],
+        "outputs": [{"id": "full_name", "response_field_id": 7}],
+        "created_at": "2024-01-01T00:00:00Z",
+        "updated_at": "2024-01-01T00:00:00Z",
+        **overrides,
+    }
+
+
 def exporter_payload(id: int = 1, **overrides) -> dict:
     return {
         "id": id,

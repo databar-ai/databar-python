@@ -321,6 +321,62 @@ class Waterfall(BaseModel):
 
 
 # ===========================================================================
+# Flows
+# ===========================================================================
+
+
+class FlowInput(BaseModel):
+    """A declared input of a flow.
+
+    Fields: id, description, type, required.
+
+    The ``id`` is the key to use in the inputs dict passed to run_flow().
+    """
+
+    id: str = Field(description="Input id — the key to use in the run_flow() inputs dict.")
+    description: str
+    type: str
+    required: bool
+
+
+class FlowOutput(BaseModel):
+    """A field produced by a flow node.
+
+    Fields: id, response_field_id.
+    """
+
+    id: str
+    response_field_id: Optional[int] = None
+
+
+class Flow(BaseModel):
+    """A saved workspace flow (multi-step enrichment pipeline).
+
+    Fields: id, name, description, inputs, outputs, created_at, updated_at.
+
+    Property aliases: .identifier → .id.
+
+    Usage::
+
+        flow = client.get_flow("flow-uuid")
+        result = client.run_flow_sync(flow.id, {"email": "alice@example.com"})
+    """
+
+    id: str = Field(description="Flow UUID. Use this when calling get_flow()/run_flow().")
+    name: str
+    description: str
+    inputs: List[FlowInput] = Field(default_factory=list)
+    outputs: List[FlowOutput] = Field(default_factory=list)
+    created_at: str = ""
+    updated_at: str = ""
+
+    @property
+    def identifier(self) -> str:
+        """Alias for id."""
+        return self.id
+
+
+# ===========================================================================
 # Tables
 # ===========================================================================
 

@@ -38,6 +38,7 @@ from .conftest import (
     BASE_URL,
     enrichment_payload,
     enrichment_summary_payload,
+    flow_payload,
     table_payload,
     task_payload,
     user_payload,
@@ -198,6 +199,43 @@ def test_run_waterfall_auto_resolves_providers(client: DatabarClient, httpx_mock
     req = httpx_mock.get_requests()[-1]
     body = json.loads(req.content)
     assert body["enrichments"] == [10, 11]
+
+
+# ===========================================================================
+# Flows
+# ===========================================================================
+
+
+def test_list_flows(client: DatabarClient, httpx_mock: HTTPXMock):
+    httpx_mock.add_response(url=f"{BASE_URL}/flows", json=[flow_payload()])
+    result = client.list_flows()
+    assert len(result) == 1
+    assert result[0].id == "flow-uuid-1"
+    assert result[0].identifier == "flow-uuid-1"
+    assert result[0].inputs[0].id == "email"
+
+
+def test_get_flow(client: DatabarClient, httpx_mock: HTTPXMock):
+    httpx_mock.add_response(url=f"{BASE_URL}/flows/flow-uuid-1", json=flow_payload())
+    f = client.get_flow("flow-uuid-1")
+    assert f.name == "Find buyer"
+    assert f.inputs[0].required is True
+
+
+def test_run_flow_returns_task(client: DatabarClient, httpx_mock: HTTPXMock):
+    httpx_mock.add_response(url=f"{BASE_URL}/flows/flow-uuid-1/run", json=task_payload("processing"))
+    task = client.run_flow("flow-uuid-1", {"email": "alice@example.com"})
+    assert task.task_id == "task-123"
+    req = httpx_mock.get_requests()[-1]
+    body = json.loads(req.content)
+    assert body == {"inputs": {"email": "alice@example.com"}}
+
+
+def test_run_flow_sync(client: DatabarClient, httpx_mock: HTTPXMock):
+    httpx_mock.add_response(url=f"{BASE_URL}/flows/flow-uuid-1/run", json=task_payload("processing"))
+    httpx_mock.add_response(url=f"{BASE_URL}/tasks/task-123", json=task_payload("completed", data={"full_name": "Alice"}))
+    result = client.run_flow_sync("flow-uuid-1", {"email": "alice@example.com"})
+    assert result == {"full_name": "Alice"}
 
 
 # ===========================================================================

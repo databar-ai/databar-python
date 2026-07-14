@@ -59,6 +59,10 @@ from .models import (
     # Waterfalls
     Waterfall,
     WaterfallEnrichment,
+    # Flows
+    Flow,
+    FlowInput,
+    FlowOutput,
     # Tables
     Table,
     Column,
@@ -95,7 +99,7 @@ from .models import (
     Folder,
 )
 
-__version__ = "2.1.0"
+__version__ = "2.2.0"
 __all__ = [
     "DatabarClient",
     # exceptions
@@ -131,6 +135,10 @@ __all__ = [
     # waterfalls
     "Waterfall",
     "WaterfallEnrichment",
+    # flows
+    "Flow",
+    "FlowInput",
+    "FlowOutput",
     # tables
     "Table",
     "Column",

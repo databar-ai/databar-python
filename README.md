@@ -1,6 +1,6 @@
 # Databar Python SDK
 
-Official Python SDK and CLI for [Databar.ai](https://databar.ai) — run data enrichments, waterfall lookups, and manage tables via `api.databar.ai/v1`.
+Official Python SDK and CLI for [Databar.ai](https://databar.ai) — run data enrichments, waterfall lookups, flows, and manage tables via `api.databar.ai/v1`.
 
 [![PyPI](https://img.shields.io/pypi/v/databar-ai)](https://pypi.org/project/databar-ai/)
 [![Python](https://img.shields.io/pypi/pyversions/databar-ai)](https://pypi.org/project/databar-ai/)
@@ -136,6 +136,26 @@ results = client.run_waterfall_bulk_sync(
     "email_getter",
     [{"linkedin_url": url} for url in urls],
 )
+```
+
+### Flows
+
+```python
+# List saved flows
+flows = client.list_flows()
+
+# Inspect a flow's declared inputs
+flow = client.get_flow("flow-uuid")
+for inp in flow.inputs:
+    print(f"  {inp.id} (required={inp.required}): {inp.description}")
+
+# Run a flow (submit + poll in one call).
+# inputs maps each flow input id → value.
+result = client.run_flow_sync("flow-uuid", {"email": "alice@example.com"})
+
+# Or submit and poll manually
+task = client.run_flow("flow-uuid", {"email": "alice@example.com"})
+result = client.poll_task(task.task_id)
 ```
 
 ### Tables
@@ -371,6 +391,21 @@ databar waterfall run email_getter --params '{"linkedin_url": "https://linkedin.
 
 # Bulk run from CSV
 databar waterfall bulk email_getter --input leads.csv --out results.csv
+```
+
+### Flows
+
+```bash
+# List saved flows
+databar flow list
+databar flow list --query "buyer"
+
+# Get flow details (declared inputs)
+databar flow get <flow-id>
+
+# Run a flow (--inputs maps each flow input id → value)
+databar flow run <flow-id> --inputs '{"email": "alice@example.com"}'
+databar flow run <flow-id> --inputs '{"email": "alice@example.com"}' --format json
 ```
 
 ### Tables

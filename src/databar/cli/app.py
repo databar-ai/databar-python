@@ -10,7 +10,7 @@ import typer
 
 from databar import __version__
 
-from . import enrichments, tables, tasks, waterfalls
+from . import enrichments, flows, tables, tasks, waterfalls
 from ._auth import app as auth_app
 
 app = typer.Typer(
@@ -29,6 +29,7 @@ app.add_typer(auth_app, name=None)  # merged at root level
 # Subcommand groups
 app.add_typer(enrichments.app, name="enrich")
 app.add_typer(waterfalls.app, name="waterfall")
+app.add_typer(flows.app, name="flow")
 app.add_typer(tables.app, name="table")
 app.add_typer(tasks.app, name="task")
 

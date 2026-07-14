@@ -6,6 +6,21 @@ All notable changes to the Databar Python SDK are documented here.
 
 ## [Unreleased]
 
+---
+
+## [2.2.0] — 2026-07-14
+
+### Added
+
+- **Flows** — list, get, and run saved workspace flows (multi-step enrichment
+  pipelines), matching the public API (`GET /flows`, `GET /flows/{id}`,
+  `POST /flows/{id}/run` + task polling).
+  - SDK: `list_flows`, `get_flow`, `run_flow`, `run_flow_sync`.
+  - CLI: `databar flow list`, `databar flow get <id>`,
+    `databar flow run <id> --inputs '{"key":"value"}'`.
+  - New models: `Flow`, `FlowInput`, `FlowOutput`. `Flow.identifier` is an alias
+    for `Flow.id`.
+
 ### Changed
 
 - **Bulk results are now aligned to inputs.** `run_enrichment_bulk_sync`,
