@@ -11,7 +11,6 @@ Supports three output formats:
 from __future__ import annotations
 
 import csv
-import io
 import json
 import sys
 from enum import Enum
@@ -22,6 +21,16 @@ import typer
 from rich import print_json as rich_print_json
 from rich.console import Console
 from rich.table import Table
+
+# Force UTF-8 on stdout/stderr before any Console is created. On Windows, a
+# redirected pipe uses the locale encoding (e.g. cp1251) and crashes on
+# characters outside that codepage (DEV-5080).
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        try:
+            _stream.reconfigure(encoding="utf-8", errors="backslashreplace")
+        except Exception:
+            pass
 
 console = Console()
 err_console = Console(stderr=True)
@@ -75,7 +84,7 @@ def output_csv(rows: list[dict], columns: list[str] | None = None, out: Path | N
         return
 
     cols = columns or list(rows[0].keys())
-    dest = open(out, "w", newline="") if out else sys.stdout
+    dest = open(out, "w", newline="", encoding="utf-8") if out else sys.stdout
     writer = csv.DictWriter(dest, fieldnames=cols, extrasaction="ignore")
     writer.writeheader()
     writer.writerows(rows)

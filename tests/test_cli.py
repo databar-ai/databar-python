@@ -30,6 +30,7 @@ from databar.models import (
     EnrichmentSummary,
     Flow,
     FlowInput,
+    RowsResponse,
     Table,
     TableEnrichment,
     TaskResponse,
@@ -111,7 +112,12 @@ def _client_mock(**method_overrides):
     m.get_columns.return_value = [
         Column(identifier="col-1", internal_name="email_col", name="email", type_of_value="text", data_processor_id=None)
     ]
-    m.get_rows.return_value = {"result": [{"id": "r1", "data": {"email": "alice@example.com"}}], "total_count": 1, "has_next_page": False}
+    m.get_rows.return_value = RowsResponse(
+        data=[{"id": "r1", "email": "alice@example.com"}],
+        total_count=1,
+        has_next_page=False,
+        page=1,
+    )
     m.create_rows.return_value = BatchInsertResponse(
         results=[BatchInsertResultItem(index=0, id="r1", action="created")]
     )
@@ -314,11 +320,75 @@ def test_table_create_with_columns(monkeypatch):
     mock.create_table.assert_called_once_with(name="T", columns=["email", "name"])
 
 
+def test_table_create_rejects_duplicate_columns(monkeypatch):
+    mock = _client_mock()
+    monkeypatch.setattr("databar.cli.tables.get_client", lambda: mock)
+    result = invoke(["table", "create", "--name", "T", "--columns", "email,email"])
+    assert result.exit_code != 0
+    mock.create_table.assert_not_called()
+
+
+def test_table_create_strips_empty_columns(monkeypatch):
+    mock = _client_mock()
+    monkeypatch.setattr("databar.cli.tables.get_client", lambda: mock)
+    result = invoke(["table", "create", "--name", "T", "--columns", "email,,name,"])
+    assert result.exit_code == 0
+    mock.create_table.assert_called_once_with(name="T", columns=["email", "name"])
+
+
+def test_table_delete(monkeypatch):
+    mock = _client_mock()
+    monkeypatch.setattr("databar.cli.tables.get_client", lambda: mock)
+    result = invoke(["table", "delete", "tbl-1"])
+    assert result.exit_code == 0
+    mock.delete_table.assert_called_once_with("tbl-1")
+
+
 def test_table_rows_json(monkeypatch):
     mock = _client_mock()
     monkeypatch.setattr("databar.cli.tables.get_client", lambda: mock)
     result = invoke(["table", "rows", "tbl-1", "--format", "json"])
     assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert data[0]["email"] == "alice@example.com"
+    mock.get_rows.assert_called_once_with("tbl-1", page=1, per_page=500)
+
+
+def test_table_rows_rejects_bad_per_page(monkeypatch):
+    mock = _client_mock()
+    monkeypatch.setattr("databar.cli.tables.get_client", lambda: mock)
+    result = invoke(["table", "rows", "tbl-1", "--per-page", "1000"])
+    assert result.exit_code != 0
+    mock.get_rows.assert_not_called()
+
+
+def test_table_rows_rejects_bad_page(monkeypatch):
+    mock = _client_mock()
+    monkeypatch.setattr("databar.cli.tables.get_client", lambda: mock)
+    result = invoke(["table", "rows", "tbl-1", "--page", "0"])
+    assert result.exit_code != 0
+    mock.get_rows.assert_not_called()
+
+
+def test_table_patch_nonzero_exit_on_failure(monkeypatch):
+    mock = _client_mock(
+        patch_rows=BatchUpdateResponse(
+            results=[BatchUpdateResultItem(id="missing", ok=False, error={"code": "ROW_NOT_FOUND"})]
+        )
+    )
+    monkeypatch.setattr("databar.cli.tables.get_client", lambda: mock)
+    result = invoke(
+        [
+            "table",
+            "patch",
+            "tbl-1",
+            "--data",
+            '[{"id":"missing","email":"x@y.com"}]',
+            "--format",
+            "json",
+        ]
+    )
+    assert result.exit_code == 1
 
 
 def test_table_insert_json_data(monkeypatch):
@@ -342,6 +412,29 @@ def test_table_enrichments(monkeypatch):
     result = invoke(["table", "enrichments", "tbl-1"])
     assert result.exit_code == 0
     assert "My Enrichment" in result.output
+
+
+def test_enrich_choices_rejects_bad_page(monkeypatch):
+    mock = _client_mock()
+    monkeypatch.setattr("databar.cli.enrichments.get_client", lambda: mock)
+    result = invoke(["enrich", "choices", "1", "country", "--page", "-1"])
+    assert result.exit_code != 0
+    mock.get_param_choices.assert_not_called()
+
+
+def test_enrich_choices_rejects_bad_limit(monkeypatch):
+    mock = _client_mock()
+    monkeypatch.setattr("databar.cli.enrichments.get_client", lambda: mock)
+    result = invoke(["enrich", "choices", "1", "country", "--limit", "999999"])
+    assert result.exit_code != 0
+    mock.get_param_choices.assert_not_called()
+
+
+def test_output_json_handles_unicode():
+    from databar.cli._output import output_json
+
+    # Smoke: non-ASCII / nb-hyphen must not raise under UTF-8 stdout.
+    output_json({"name": "Acme‑Corp"})
 
 
 # ===========================================================================
@@ -373,4 +466,4 @@ def test_task_get_poll(monkeypatch):
 def test_version_flag():
     result = runner.invoke(app, ["--version"])
     assert result.exit_code == 0
-    assert "2.2.0" in result.output
+    assert "2.3.0" in result.output

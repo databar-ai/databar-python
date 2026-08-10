@@ -28,6 +28,7 @@ app = typer.Typer(help="Search and run waterfall enrichments.")
 def list_waterfalls(
     query: Optional[str] = typer.Option(None, "--query", "-q", help="Filter by name/description."),
     fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "--output", "-f"),
+    out: Optional[Path] = typer.Option(None, "--out", "-o", help="Output file (for CSV format)."),
 ) -> None:
     """List available waterfall enrichments."""
     client = get_client()
@@ -58,7 +59,7 @@ def list_waterfalls(
         }
         for w in waterfalls
     ]
-    output(rows, fmt, table_columns=["identifier", "name", "providers", "description"])
+    output(rows, fmt, table_columns=["identifier", "name", "providers", "description"], out=out)
 
 
 @app.command("get")

@@ -4,7 +4,33 @@ All notable changes to the Databar Python SDK are documented here.
 
 ---
 
-## [Unreleased]
+## [2.3.0] — 2026-08-10
+
+### Fixed
+
+- **Windows redirect crash** — `--format json/csv` no longer raises
+  `UnicodeEncodeError` when stdout is redirected on non-UTF-8 locales
+  (e.g. cp1251). CLI forces UTF-8 on stdout/stderr and writes CSV files as UTF-8.
+- **`table rows` default `--per-page`** — was 1000 (API max is 500), so the
+  command failed out of the box with `PER_PAGE_TOO_LARGE`. Default and help
+  text are now 500; values outside 1–500 are rejected client-side.
+- **`table rows` empty output** — CLI now reads `RowsResponse` correctly
+  instead of looking for a legacy `result` dict key.
+- **`enrich choices` / pagination** — `--page` must be >= 1 and `--limit`
+  must be 1–500; invalid values fail with a clear CLI error instead of a
+  backend 500 HTML page.
+- **`table create --columns`** — duplicate and empty names are rejected
+  instead of creating ambiguous/blank columns.
+- **`table patch` / `table upsert` exit code** — returns 1 when any row
+  fails (`ok: false`), matching the documented Unix exit-code convention.
+
+### Added
+
+- **`databar table delete <uuid>`** — delete a table via CLI (SDK method
+  already existed).
+- **`--out`** on list commands that support CSV: `enrich list`,
+  `enrich choices`, `table list`, `table columns`, `table enrichments`,
+  `waterfall list`, `flow list`.
 
 ---
 

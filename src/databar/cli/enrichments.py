@@ -29,6 +29,7 @@ app = typer.Typer(help="Search and run data enrichments.")
 def list_enrichments(
     query: Optional[str] = typer.Option(None, "--query", "-q", help="Search query."),
     fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "--output", "-f"),
+    out: Optional[Path] = typer.Option(None, "--out", "-o", help="Output file (for CSV format)."),
 ) -> None:
     """List available enrichments."""
     client = get_client()
@@ -53,7 +54,7 @@ def list_enrichments(
         }
         for e in enrichments
     ]
-    output(rows, fmt, table_columns=["id", "name", "data_source", "price", "description"])
+    output(rows, fmt, table_columns=["id", "name", "data_source", "price", "description"], out=out)
 
 
 @app.command("get")
@@ -166,11 +167,17 @@ def param_choices(
     enrichment_id: int = typer.Argument(..., help="Enrichment ID."),
     param_slug: str = typer.Argument(..., help="Parameter slug/name."),
     query: Optional[str] = typer.Option(None, "--query", "-q", help="Filter choices."),
-    page: int = typer.Option(1, "--page", help="Page number."),
-    limit: int = typer.Option(50, "--limit", help="Results per page."),
+    page: int = typer.Option(1, "--page", help="Page number (min 1)."),
+    limit: int = typer.Option(50, "--limit", help="Results per page (max 500)."),
     fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "--output", "-f"),
+    out: Optional[Path] = typer.Option(None, "--out", "-o", help="Output file (for CSV format)."),
 ) -> None:
     """List available choices for a select/mselect enrichment parameter."""
+    if page < 1:
+        error("--page must be >= 1.")
+    if limit < 1 or limit > 500:
+        error("--limit must be between 1 and 500.")
+
     client = get_client()
     try:
         response = client.get_param_choices(enrichment_id, param_slug, q=query, page=page, limit=limit)
@@ -180,7 +187,7 @@ def param_choices(
         client.close()
 
     rows = [{"id": c.id, "name": c.name} for c in response.items]
-    output(rows, fmt, table_columns=["id", "name"])
+    output(rows, fmt, table_columns=["id", "name"], out=out)
 
     if response.has_next_page:
         info(f"Page {response.page} of many. Use --page {response.page + 1} for the next page.")

@@ -3,6 +3,7 @@ CLI commands for tables and rows.
 
   databar table list
   databar table create        [--name] [--columns col1,col2,...]
+  databar table delete        <uuid>
   databar table columns       <uuid>
   databar table rows          <uuid> [--page] [--per-page] [--format] [--out]
   databar table insert        <uuid> (--data JSON | --input FILE.csv) [--allow-new-columns] [--dedupe-keys]
@@ -23,17 +24,30 @@ from typing import Optional
 import typer
 
 from databar.exceptions import DatabarError
-from databar.models import BatchUpdateRow, InsertOptions, InsertRow, DedupeOptions, UpsertRow
+from databar.models import BatchUpdateRow, InsertOptions, InsertRow, DedupeOptions, RowsResponse, UpsertRow
 
 from ._auth import get_client
-from ._output import OutputFormat, console, error, info, output, success
+from ._output import OutputFormat, error, info, output, success
 
 app = typer.Typer(help="Manage tables and rows.")
+
+_MAX_PER_PAGE = 500
+
+
+def _parse_columns(columns: Optional[str]) -> Optional[list[str]]:
+    """Split --columns into unique non-empty names. Errors on duplicates."""
+    if columns is None:
+        return None
+    col_list = [c.strip() for c in columns.split(",") if c.strip()]
+    if len(col_list) != len(set(col_list)):
+        error("Duplicate column names are not allowed.")
+    return col_list or None
 
 
 @app.command("list")
 def list_tables(
     fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "--output", "-f"),
+    out: Optional[Path] = typer.Option(None, "--out", "-o", help="Output file (for CSV format)."),
 ) -> None:
     """List all tables in your workspace."""
     client = get_client()
@@ -52,7 +66,7 @@ def list_tables(
         {"uuid": t.identifier, "name": t.name, "created": t.created_at, "updated": t.updated_at}
         for t in tables
     ]
-    output(rows, fmt, table_columns=["uuid", "name", "created", "updated"])
+    output(rows, fmt, table_columns=["uuid", "name", "created", "updated"], out=out)
 
 
 @app.command("create")
@@ -62,7 +76,7 @@ def create_table(
     fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "--output", "-f"),
 ) -> None:
     """Create a new empty table."""
-    col_list = [c.strip() for c in columns.split(",")] if columns else None
+    col_list = _parse_columns(columns)
 
     client = get_client()
     try:
@@ -76,10 +90,27 @@ def create_table(
     output({"uuid": table.identifier, "name": table.name, "created": table.created_at}, fmt)
 
 
+@app.command("delete")
+def delete_table(
+    table_uuid: str = typer.Argument(..., help="Table UUID."),
+) -> None:
+    """Delete a table and all its rows."""
+    client = get_client()
+    try:
+        client.delete_table(table_uuid)
+    except DatabarError as e:
+        error(str(e))
+    finally:
+        client.close()
+
+    success(f"Table deleted: {table_uuid}")
+
+
 @app.command("columns")
 def get_columns(
     table_uuid: str = typer.Argument(..., help="Table UUID."),
     fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "--output", "-f"),
+    out: Optional[Path] = typer.Option(None, "--out", "-o", help="Output file (for CSV format)."),
 ) -> None:
     """List columns defined on a table."""
     client = get_client()
@@ -98,18 +129,23 @@ def get_columns(
         {"name": c.name, "type": c.type_of_value, "internal_name": c.internal_name, "id": c.identifier}
         for c in columns
     ]
-    output(rows, fmt, table_columns=["name", "type", "internal_name", "id"])
+    output(rows, fmt, table_columns=["name", "type", "internal_name", "id"], out=out)
 
 
 @app.command("rows")
 def get_rows(
     table_uuid: str = typer.Argument(..., help="Table UUID."),
-    page: int = typer.Option(1, "--page", help="Page number."),
-    per_page: int = typer.Option(1000, "--per-page", help="Rows per page (max 1000)."),
+    page: int = typer.Option(1, "--page", help="Page number (min 1)."),
+    per_page: int = typer.Option(_MAX_PER_PAGE, "--per-page", help=f"Rows per page (max {_MAX_PER_PAGE})."),
     fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "--output", "-f"),
     out: Optional[Path] = typer.Option(None, "--out", "-o", help="Output file (for CSV format)."),
 ) -> None:
     """Get rows from a table."""
+    if page < 1:
+        error("--page must be >= 1.")
+    if per_page < 1 or per_page > _MAX_PER_PAGE:
+        error(f"--per-page must be between 1 and {_MAX_PER_PAGE}.")
+
     client = get_client()
     try:
         data = client.get_rows(table_uuid, page=page, per_page=per_page)
@@ -118,17 +154,21 @@ def get_rows(
     finally:
         client.close()
 
-    results = data.get("result", data) if isinstance(data, dict) else data
-    total = data.get("total_count", "?") if isinstance(data, dict) else "?"
-    has_next = data.get("has_next_page", False) if isinstance(data, dict) else False
-
-    # Flatten nested row data format {id, data: {...}} → flat dict
-    flat = []
-    for row in (results if isinstance(results, list) else []):
-        if isinstance(row, dict) and "data" in row and isinstance(row["data"], dict):
-            flat.append({"_id": row.get("id", ""), **row["data"]})
-        else:
-            flat.append(row)
+    if isinstance(data, RowsResponse):
+        flat = data.data
+        total = data.total_count
+        has_next = data.has_next_page
+    else:
+        # Defensive: older mocks / unexpected shapes.
+        results = data.get("data", data.get("result", data)) if isinstance(data, dict) else data
+        total = data.get("total_count", "?") if isinstance(data, dict) else "?"
+        has_next = data.get("has_next_page", False) if isinstance(data, dict) else False
+        flat = []
+        for row in (results if isinstance(results, list) else []):
+            if isinstance(row, dict) and "data" in row and isinstance(row["data"], dict):
+                flat.append({"id": row.get("id", ""), **row["data"]})
+            else:
+                flat.append(row)
 
     output(flat, fmt, out=out)
 
@@ -212,6 +252,9 @@ def patch_rows(
         rows_out = [{"id": r.id, "ok": r.ok, "error": r.error or ""} for r in response.results]
         output(rows_out, fmt, table_columns=["id", "ok", "error"])
 
+    if failed:
+        raise typer.Exit(code=1)
+
 
 @app.command("upsert")
 def upsert_rows(
@@ -241,7 +284,8 @@ def upsert_rows(
 
     created = [r for r in response.results if r.action == "created"]
     updated = [r for r in response.results if r.action == "updated"]
-    success(f"Created {len(created)}, updated {len(updated)} row(s).")
+    failed = [r for r in response.results if not r.ok]
+    success(f"Created {len(created)}, updated {len(updated)} row(s). Failed: {len(failed)}.")
 
     if fmt == OutputFormat.JSON:
         output(response.model_dump(), fmt)
@@ -249,11 +293,15 @@ def upsert_rows(
         rows_out = [{"id": r.id or "", "action": r.action or "", "ok": r.ok} for r in response.results]
         output(rows_out, fmt, table_columns=["id", "action", "ok"])
 
+    if failed:
+        raise typer.Exit(code=1)
+
 
 @app.command("enrichments")
 def table_enrichments(
     table_uuid: str = typer.Argument(..., help="Table UUID."),
     fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "--output", "-f"),
+    out: Optional[Path] = typer.Option(None, "--out", "-o", help="Output file (for CSV format)."),
 ) -> None:
     """List enrichments configured on a table."""
     client = get_client()
@@ -269,7 +317,7 @@ def table_enrichments(
         return
 
     rows = [{"id": e.id, "name": e.name} for e in enrichments]
-    output(rows, fmt, table_columns=["id", "name"])
+    output(rows, fmt, table_columns=["id", "name"], out=out)
 
 
 @app.command("add-enrichment")
