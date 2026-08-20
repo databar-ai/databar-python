@@ -80,6 +80,26 @@ class DatabarTaskFailedError(DatabarError):
         self.task_id = task_id
 
 
+class DatabarTaskCancelledError(DatabarError):
+    """Raised when a polled task was cancelled.
+
+    ``partial_data`` holds whatever the rows that did finish returned. Unlike a completed
+    bulk run this is *not* aligned to the inputs — the rows that never ran leave no gap —
+    so it can't be joined back by position.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        task_id: str | None = None,
+        partial_data: Any = None,
+        response_body: Any = None,
+    ) -> None:
+        super().__init__(message, response_body=response_body)
+        self.task_id = task_id
+        self.partial_data = partial_data
+
+
 class DatabarTimeoutError(DatabarError):
     """Raised when polling a task exceeds max_poll_attempts without completing."""
 

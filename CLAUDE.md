@@ -153,8 +153,10 @@ databar table run-enrichment <table-uuid> --enrichment-id <TABLE-ENRICHMENT-ID>
 ### Tasks
 
 ```bash
-databar task get <task-id> --format json    # check once
+databar task get <task-id> --format json    # check once; bulk tasks report progress
 databar task get <task-id> --poll           # poll until complete
+databar task get <task-id> --partial        # rows a running bulk task already finished
+databar task cancel <task-id>               # stop it; finished rows keep their results
 ```
 
 ### Account
@@ -203,6 +205,12 @@ resp  = client.get_rows(table.identifier)
 
 from databar import InsertRow
 client.create_rows(table.identifier, [InsertRow(fields={"email": "alice@example.com"})])
+
+# Tasks
+task = client.get_task(task_id)
+# task.progress → {"total", "completed", "failed", "processing"} while a bulk run is going
+# client.get_task(task_id, include_partial=True).data → rows already finished
+client.cancel_task(task_id)   # stops it; poll_task then raises DatabarTaskCancelledError
 ```
 
 ---
@@ -236,6 +244,7 @@ from databar import (
     DatabarInsufficientCreditsError,   # 406
     DatabarNotFoundError,              # 404
     DatabarTaskFailedError,            # task failed
+    DatabarTaskCancelledError,         # task cancelled; .partial_data holds finished rows
     DatabarTimeoutError,               # polling timed out
     DatabarGoneError,                  # results expired
 )

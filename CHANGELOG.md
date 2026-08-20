@@ -4,6 +4,26 @@ All notable changes to the Databar Python SDK are documented here.
 
 ---
 
+## [Unreleased]
+
+### Added
+
+- **Task progress** — `get_task` now returns a `progress` object for bulk runs
+  (`total` / `completed` / `failed` / `processing` counts of inputs), so a task
+  that is advancing can be told apart from one that is stuck. `databar task get`
+  prints it.
+- **Cancel a task** — `client.cancel_task(task_id)` and
+  `databar task cancel <task-id>` stop a running task and refund what its
+  unfinished requests reserved. Rows that already finished keep their results.
+- **Partial results** — `get_task(task_id, include_partial=True)` and
+  `databar task get --partial` return the rows a running bulk task has already
+  finished. Opt-in, because it makes the API read the whole result set per poll.
+- **`DatabarTaskCancelledError`** — raised by `poll_task` when a task was
+  cancelled. Carries `.partial_data`, which is *not* aligned to the inputs (the
+  rows that never ran leave no gap), so it can't be joined back by position.
+
+---
+
 ## [2.3.0] — 2026-08-10
 
 ### Fixed

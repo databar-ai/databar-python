@@ -11,7 +11,12 @@ import pytest
 from pytest_httpx import HTTPXMock
 
 from databar.client import DatabarClient
-from databar.exceptions import DatabarGoneError, DatabarTaskFailedError
+from databar.exceptions import (
+    DatabarError,
+    DatabarGoneError,
+    DatabarTaskCancelledError,
+    DatabarTaskFailedError,
+)
 from databar.models import (
     AddEnrichmentResponse,
     AddExporterResponse,
@@ -76,6 +81,60 @@ def test_poll_task_gone_raises(client: DatabarClient, httpx_mock: HTTPXMock):
     )
     with pytest.raises(DatabarGoneError):
         client.poll_task("t1")
+
+
+def test_poll_task_cancelled_raises_with_partial_data(client: DatabarClient, httpx_mock: HTTPXMock):
+    """A cancelled bulk run returns only the rows that finished, so it can't be joined
+    back by position — hand it over as partial_data rather than as a normal result."""
+    httpx_mock.add_response(
+        url=f"{BASE_URL}/tasks/t1",
+        json=task_payload("cancelled", task_id="t1", data=[{"row": 1}]),
+    )
+    with pytest.raises(DatabarTaskCancelledError) as exc_info:
+        client.poll_task("t1")
+    assert exc_info.value.partial_data == [{"row": 1}]
+    assert exc_info.value.task_id == "t1"
+
+
+def test_get_task_exposes_bulk_progress(client: DatabarClient, httpx_mock: HTTPXMock):
+    httpx_mock.add_response(
+        url=f"{BASE_URL}/tasks/t1",
+        json=task_payload(
+            "processing",
+            task_id="t1",
+            progress={"total": 10, "completed": 4, "failed": 1, "processing": 5},
+        ),
+    )
+    task = client.get_task("t1")
+    assert task.progress == {"total": 10, "completed": 4, "failed": 1, "processing": 5}
+
+
+def test_get_task_partial_is_opt_in(client: DatabarClient, httpx_mock: HTTPXMock):
+    httpx_mock.add_response(
+        url=f"{BASE_URL}/tasks/t1?include_partial=true",
+        json=task_payload("processing", task_id="t1", data=[{"row": 1}]),
+    )
+    assert client.get_task("t1", include_partial=True).data == [{"row": 1}]
+
+
+def test_cancel_task(client: DatabarClient, httpx_mock: HTTPXMock):
+    httpx_mock.add_response(
+        method="POST",
+        url=f"{BASE_URL}/tasks/t1/cancel",
+        json=task_payload("cancelled", task_id="t1"),
+    )
+    assert client.cancel_task("t1").status == "cancelled"
+
+
+def test_cancel_task_of_a_finished_task_raises(client: DatabarClient, httpx_mock: HTTPXMock):
+    httpx_mock.add_response(
+        method="POST",
+        url=f"{BASE_URL}/tasks/t1/cancel",
+        status_code=409,
+        json={"detail": "Task has already finished"},
+    )
+    with pytest.raises(DatabarError):
+        client.cancel_task("t1")
 
 
 # ===========================================================================

@@ -84,11 +84,17 @@ def enrichment_list_response_payload(page: int = 1, items: list | None = None, *
     }
 
 
-def task_payload(status: str = "processing", task_id: str = "task-123", data=None) -> dict:
+def task_payload(
+    status: str = "processing",
+    task_id: str = "task-123",
+    data=None,
+    progress: dict | None = None,
+) -> dict:
     return {
         "task_id": task_id,
         "status": status,
         "data": data,
+        "progress": progress,
         "error": None,
     }
 

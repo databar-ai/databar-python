@@ -11,7 +11,7 @@ Covers all endpoints with:
 
 Endpoint groups:
   - User:        get_user
-  - Tasks:       get_task, poll_task
+  - Tasks:       get_task, poll_task, cancel_task
   - Enrichments: list_enrichments, get_enrichment, run_enrichment[_bulk][_sync],
                  get_param_choices
   - Waterfalls:  list_waterfalls, get_waterfall, run_waterfall[_bulk][_sync]
@@ -45,6 +45,7 @@ from .exceptions import (
     DatabarInsufficientCreditsError,
     DatabarNotFoundError,
     DatabarRateLimitError,
+    DatabarTaskCancelledError,
     DatabarTaskFailedError,
     DatabarTimeoutError,
     DatabarValidationError,
@@ -255,9 +256,25 @@ class DatabarClient:
     # Task polling
     # -----------------------------------------------------------------------
 
-    def get_task(self, task_id: str) -> TaskResponse:
-        """Get the current status of a task."""
-        data = self._request("GET", f"/tasks/{task_id}")
+    def get_task(self, task_id: str, include_partial: bool = False) -> TaskResponse:
+        """Get the current status of a task.
+
+        While a bulk task is still running, ``progress`` carries per-input counts. Pass
+        ``include_partial=True`` to also get back the rows that have already finished —
+        off by default because it makes the API read the whole result set on every poll.
+        """
+        params = {"include_partial": "true"} if include_partial else None
+        data = self._request("GET", f"/tasks/{task_id}", params=params)
+        return TaskResponse.model_validate(data)
+
+    def cancel_task(self, task_id: str) -> TaskResponse:
+        """Cancel a running task, refunding what its unfinished requests reserved.
+
+        Rows that already finished keep their results — read them with
+        ``get_task(task_id)`` afterwards. Raises ``DatabarError`` (409) if the task has
+        already reached a terminal status.
+        """
+        data = self._request("POST", f"/tasks/{task_id}/cancel")
         return TaskResponse.model_validate(data)
 
     def poll_task(self, task_id: str) -> Any:
@@ -265,7 +282,8 @@ class DatabarClient:
         Poll until a task completes or times out.
 
         Returns the task's data payload on success (status completed or partially_completed).
-        Raises DatabarTaskFailedError, DatabarGoneError or DatabarTimeoutError otherwise.
+        Raises DatabarTaskFailedError, DatabarTaskCancelledError, DatabarGoneError or
+        DatabarTimeoutError otherwise.
 
         For bulk runs the payload is a list aligned to the inputs: one element
         per input in input order, with ``None`` for inputs that returned no data
@@ -293,6 +311,15 @@ class DatabarClient:
             if status == "gone":
                 raise DatabarGoneError(
                     "Task data has expired. Re-run the enrichment to get fresh results.",
+                    response_body=task.model_dump(),
+                )
+
+            if status == "cancelled":
+                raise DatabarTaskCancelledError(
+                    "Task was cancelled. Results of the rows that finished are on "
+                    ".partial_data, unaligned to the inputs.",
+                    task_id=task_id,
+                    partial_data=task.data,
                     response_body=task.model_dump(),
                 )
             # "processing", "no_data" → continue polling

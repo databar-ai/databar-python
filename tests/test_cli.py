@@ -16,7 +16,7 @@ import pytest
 from typer.testing import CliRunner
 
 from databar.cli.app import app
-from databar.exceptions import DatabarAuthError
+from databar.exceptions import DatabarAuthError, DatabarError
 from databar.models import (
     BatchInsertResponse,
     BatchInsertResultItem,
@@ -131,6 +131,11 @@ def _client_mock(**method_overrides):
     m.add_enrichment.return_value = {"status": "ok"}
     m.run_table_enrichment.return_value = {"status": "triggered"}
     m.get_task.return_value = TaskResponse(task_id="t1", status="completed", data={"result": "ok"})
+    m.cancel_task.return_value = TaskResponse(
+        task_id="t1",
+        status="cancelled",
+        progress={"total": 10, "completed": 4, "failed": 1, "processing": 5},
+    )
     m.poll_task.return_value = {"result": "ok"}
 
     for method, return_value in method_overrides.items():
@@ -456,6 +461,46 @@ def test_task_get_poll(monkeypatch):
     result = invoke(["task", "get", "t1", "--poll"])
     assert result.exit_code == 0
     mock.poll_task.assert_called_once_with("t1")
+
+
+def test_task_get_shows_progress_of_a_running_bulk_task(monkeypatch):
+    mock = _client_mock()
+    mock.get_task.return_value = TaskResponse(
+        task_id="t1",
+        status="processing",
+        progress={"total": 10, "completed": 4, "failed": 1, "processing": 5},
+    )
+    monkeypatch.setattr("databar.cli.tasks.get_client", lambda: mock)
+    result = invoke(["task", "get", "t1"])
+    assert result.exit_code == 0
+    assert "4 completed" in result.output
+    assert "of 10" in result.output
+
+
+def test_task_get_partial_asks_for_finished_rows(monkeypatch):
+    mock = _client_mock()
+    monkeypatch.setattr("databar.cli.tasks.get_client", lambda: mock)
+    result = invoke(["task", "get", "t1", "--partial"])
+    assert result.exit_code == 0
+    mock.get_task.assert_called_once_with("t1", include_partial=True)
+
+
+def test_task_cancel(monkeypatch):
+    mock = _client_mock()
+    monkeypatch.setattr("databar.cli.tasks.get_client", lambda: mock)
+    result = invoke(["task", "cancel", "t1"])
+    assert result.exit_code == 0
+    assert "cancelled" in result.output.lower()
+    mock.cancel_task.assert_called_once_with("t1")
+
+
+def test_task_cancel_reports_a_finished_task(monkeypatch):
+    mock = _client_mock()
+    mock.cancel_task.side_effect = DatabarError("Task has already finished", status_code=409)
+    monkeypatch.setattr("databar.cli.tasks.get_client", lambda: mock)
+    result = invoke(["task", "cancel", "t1"])
+    assert result.exit_code == 1
+    assert "already finished" in result.stderr
 
 
 # ===========================================================================

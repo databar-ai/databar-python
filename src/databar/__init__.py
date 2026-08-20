@@ -31,6 +31,7 @@ from .exceptions import (
     DatabarInsufficientCreditsError,
     DatabarNotFoundError,
     DatabarRateLimitError,
+    DatabarTaskCancelledError,
     DatabarTaskFailedError,
     DatabarTimeoutError,
     DatabarValidationError,
@@ -110,6 +111,7 @@ __all__ = [
     "DatabarGoneError",
     "DatabarValidationError",
     "DatabarRateLimitError",
+    "DatabarTaskCancelledError",
     "DatabarTaskFailedError",
     "DatabarTimeoutError",
     # pricing / category

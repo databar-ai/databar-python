@@ -305,6 +305,22 @@ client.move_table_to_folder(table.identifier)          # remove from folder
 client.delete_folder(folder.id)                        # tables move to root
 ```
 
+### Tasks
+
+```python
+task = client.run_enrichment_bulk(123, [{"email": "a@b.com"}, {"email": "c@d.com"}])
+
+# While a bulk run is going, progress tells you whether it is advancing or stuck
+status = client.get_task(task.task_id)
+status.progress          # {"total": 2, "completed": 1, "failed": 0, "processing": 1}
+
+# Rows that have already finished, without waiting for the rest
+client.get_task(task.task_id, include_partial=True).data
+
+# Stop it — unfinished requests are refunded, finished rows keep their results
+client.cancel_task(task.task_id)
+```
+
 ### Error handling
 
 ```python
@@ -313,6 +329,7 @@ from databar import (
     DatabarAuthError,
     DatabarInsufficientCreditsError,
     DatabarNotFoundError,
+    DatabarTaskCancelledError,
     DatabarTaskFailedError,
     DatabarTimeoutError,
 )
@@ -327,6 +344,9 @@ except DatabarNotFoundError:
     print("Enrichment not found")
 except DatabarTaskFailedError as e:
     print(f"Task failed: {e.message}")
+except DatabarTaskCancelledError as e:
+    # Only the rows that finished, and not aligned to the inputs.
+    print(f"Cancelled, got {len(e.partial_data or [])} rows")
 except DatabarTimeoutError as e:
     print(f"Timed out after polling {e.max_attempts} times")
 ```
@@ -444,11 +464,17 @@ databar table run-enrichment <uuid> --enrichment-id <table-enrichment-id>
 ### Tasks
 
 ```bash
-# Check a task status
+# Check a task status — a bulk task also reports how many inputs are done
 databar task get <task-id>
 
 # Poll until complete
 databar task get <task-id> --poll
+
+# Collect the rows a running bulk task has already finished
+databar task get <task-id> --partial
+
+# Stop a running task; finished rows keep their results
+databar task cancel <task-id>
 ```
 
 ### Output formats

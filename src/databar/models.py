@@ -233,6 +233,7 @@ class TaskStatus(str, Enum):
     FAILED = "failed"
     GONE = "gone"
     NO_DATA = "no_data"
+    CANCELLED = "cancelled"
 
 
 class RunResponse(BaseModel):
@@ -246,7 +247,7 @@ class TaskResponse(BaseModel):
     """Returned by GET /v1/tasks/{task_id}.
 
     The backend also populates `request_id` (deprecated alias) so both names are accepted.
-    Statuses: processing, no_data, completed, partially_completed, failed, gone.
+    Statuses: processing, no_data, completed, partially_completed, failed, cancelled, gone.
 
     Task data is stored for **24 hours**. After that status becomes 'gone'.
     """
@@ -257,7 +258,18 @@ class TaskResponse(BaseModel):
         description="Deprecated alias for task_id. Same value.",
     )
     status: str = Field(
-        description="Current status: processing, completed, partially_completed, failed, or gone."
+        description=(
+            "Current status: processing, completed, partially_completed, failed, "
+            "cancelled, or gone."
+        )
+    )
+    progress: Optional[Dict[str, int]] = Field(
+        default=None,
+        description=(
+            "How far a bulk run has got: total, completed, failed and processing counts "
+            "of inputs. `failed` covers every finished input that produced no data, clean "
+            "misses included. Omitted for single (non-bulk) runs."
+        ),
     )
     data: Optional[Union[List[Any], Dict[str, Any]]] = Field(
         default=None,
