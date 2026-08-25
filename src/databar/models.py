@@ -689,6 +689,16 @@ class ExporterParam(BaseModel):
     choices: Optional[Choices] = None
 
 
+class ExporterAdditionalParam(BaseModel):
+    """A provider-fetched dynamic field (e.g. a HubSpot company property).
+
+    Pass via ``additional_mapping`` on ``add_exporter`` — not via ``mapping``.
+    """
+
+    name: str
+    label: str
+
+
 class ExporterResponseField(BaseModel):
     """A field in the exporter result."""
 
@@ -713,12 +723,17 @@ class AuthorizationInfo(BaseModel):
 
 
 class ExporterDetail(Exporter):
-    """Full exporter detail including params, response fields and authorization info.
+    """Full exporter detail including params, dynamic fields and authorization.
 
-    Fields: id, name, description, dataset, params, response_fields, authorization.
+    Fields: id, name, description, dataset, params, additional_params,
+    response_fields, authorization.
+
+    ``additional_params`` are provider-fetched fields (HubSpot/Pipedrive
+    properties). Map them with ``additional_mapping`` on ``add_exporter``.
     """
 
     params: List[ExporterParam] = Field(default_factory=list)
+    additional_params: List[ExporterAdditionalParam] = Field(default_factory=list)
     response_fields: List[ExporterResponseField] = Field(default_factory=list)
     authorization: AuthorizationInfo
 

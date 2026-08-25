@@ -8,6 +8,9 @@ All notable changes to the Databar Python SDK are documented here.
 
 ### Added
 
+- **Exporter dynamic fields** — `get_exporter` returns `additional_params`
+  (HubSpot/Pipedrive property names) when a connection is available. Pass them
+  via `add_exporter(..., additional_mapping={...})` — not via `mapping`.
 - **Task progress** — `get_task` now returns a `progress` object for bulk runs
   (`total` / `completed` / `failed` / `processing` counts of inputs), so a task
   that is advancing can be told apart from one that is stuck. `databar task get`

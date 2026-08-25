@@ -832,6 +832,7 @@ class DatabarClient:
         launch_strategy: Literal["run_on_click", "run_on_update"] = "run_on_click",
         authorization: Optional[int] = None,
         custom_body_template: Optional[str] = None,
+        additional_mapping: Optional[Dict[str, Any]] = None,
     ) -> AddExporterResponse:
         """
         Add an exporter to a table.
@@ -839,12 +840,17 @@ class DatabarClient:
         Args:
             table_uuid: UUID of the table.
             exporter_id: The exporter ID (from list_exporters).
-            mapping: Parameter mapping. Keys are exporter parameter slugs. Values are
-                ``{"type": "mapping"|"simple", "value": "<column-name-or-uuid|static-value>"}``.
+            mapping: Parameter mapping for static dataset params. Keys are
+                exporter parameter slugs from ``get_exporter().params``. Values
+                are ``{"type": "mapping"|"simple", "value": "<column-name-or-uuid|static-value>"}``.
             launch_strategy: 'run_on_click' (manual) or 'run_on_update' (auto-trigger).
             authorization: ID of the API key / OAuth connection to use. Auto-selected if omitted.
             custom_body_template: Custom JSON body template. Column values referenced via
-                {column_internal_name} placeholders. When set, mapping is ignored.
+                {column_internal_name} placeholders. When set, body-typed params in mapping
+                are ignored.
+            additional_mapping: Mapping for provider-fetched dynamic fields from
+                ``get_exporter().additional_params`` (e.g. HubSpot ``domain`` / ``name``).
+                Same entry format as ``mapping``. Do not put these keys in ``mapping``.
 
         Returns:
             :class:`AddExporterResponse` with ``id`` and ``exporter_name``.
@@ -859,6 +865,8 @@ class DatabarClient:
             payload["authorization"] = authorization
         if custom_body_template is not None:
             payload["custom_body_template"] = custom_body_template
+        if additional_mapping is not None:
+            payload["additional_mapping"] = additional_mapping
         data = self._request("POST", f"/table/{table_uuid}/add-exporter", json=payload)
         return AddExporterResponse.model_validate(data)
 
@@ -1030,11 +1038,25 @@ class DatabarClient:
             )
         return [Exporter.model_validate(e) for e in data]
 
-    def get_exporter(self, exporter_id: int) -> ExporterDetail:
+    def get_exporter(self, exporter_id: int, authorization: Optional[int] = None) -> ExporterDetail:
         """
-        Get full details for a specific exporter, including params and authorization info.
+        Get full details for a specific exporter, including static params,
+        provider-fetched ``additional_params`` (HubSpot/Pipedrive properties),
+        and authorization info.
+
+        Args:
+            exporter_id: The exporter ID (from list_exporters).
+            authorization: Optional connection id used to fetch dynamic fields.
+                When omitted, the first active workspace connection is used.
         """
-        data = self._request("GET", f"/exporters/{exporter_id}")
+        params: Dict[str, Any] = {}
+        if authorization is not None:
+            params["authorization"] = authorization
+        data = self._request(
+            "GET",
+            f"/exporters/{exporter_id}",
+            params=params if params else None,
+        )
         return ExporterDetail.model_validate(data)
 
     # -----------------------------------------------------------------------
