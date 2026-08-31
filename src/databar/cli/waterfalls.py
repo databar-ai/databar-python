@@ -35,7 +35,7 @@ def list_waterfalls(
     try:
         waterfalls = client.list_waterfalls()
     except DatabarError as e:
-        error(str(e))
+        error(e)
     finally:
         client.close()
 
@@ -48,6 +48,7 @@ def list_waterfalls(
 
     if not waterfalls:
         info("No waterfalls found.")
+        output([], fmt, out=out)
         return
 
     rows = [
@@ -72,7 +73,7 @@ def get_waterfall(
     try:
         w = client.get_waterfall(identifier)
     except DatabarError as exc:
-        error(str(exc))
+        error(exc)
     finally:
         client.close()
 
@@ -144,7 +145,7 @@ def run_waterfall(
             email_verifier=email_verifier,
         )
     except DatabarError as exc:
-        error(str(exc))
+        error(exc)
     finally:
         client.close()
 
@@ -185,7 +186,7 @@ def bulk_waterfall(
             email_verifier=email_verifier,
         )
     except DatabarError as exc:
-        error(str(exc))
+        error(exc)
     finally:
         client.close()
 

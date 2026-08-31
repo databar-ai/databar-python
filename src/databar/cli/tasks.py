@@ -62,19 +62,30 @@ def get_task(
             output(data, fmt)
         else:
             task = client.get_task(task_id, include_partial=partial)
-            _print_status(task)
+            if fmt != OutputFormat.JSON:
+                _print_status(task)
             if task.data is not None:
                 output(task.data, fmt)
             elif task.error:
                 error_val = task.error
                 msg = "; ".join(error_val) if isinstance(error_val, list) else error_val
-                console.print(f"[red]Error: {msg}[/red]")
+                error(msg, code="task_failed")
+            elif fmt == OutputFormat.JSON:
+                # Status-only response (still running / no data yet).
+                output(
+                    {
+                        "task_id": task.task_id,
+                        "status": task.status,
+                        "progress": task.progress,
+                    },
+                    fmt,
+                )
     except DatabarTaskFailedError as exc:
-        error(str(exc))
+        error(exc)
     except DatabarTimeoutError as exc:
-        error(str(exc))
+        error(exc)
     except DatabarError as exc:
-        error(str(exc))
+        error(exc)
     finally:
         client.close()
 
@@ -90,6 +101,6 @@ def cancel_task(
         _print_status(task)
         info(f"Cancelled. Collect what finished with: databar task get {task_id}")
     except DatabarError as exc:
-        error(str(exc))
+        error(exc)
     finally:
         client.close()

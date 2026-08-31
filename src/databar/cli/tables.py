@@ -23,6 +23,8 @@ from typing import Optional
 
 import typer
 
+from pydantic import ValidationError
+
 from databar.exceptions import DatabarError
 from databar.models import BatchUpdateRow, InsertOptions, InsertRow, DedupeOptions, RowsResponse, UpsertRow
 
@@ -54,12 +56,13 @@ def list_tables(
     try:
         tables = client.list_tables()
     except DatabarError as e:
-        error(str(e))
+        error(e)
     finally:
         client.close()
 
     if not tables:
         info("No tables found.")
+        output([], fmt, out=out)
         return
 
     rows = [
@@ -82,7 +85,7 @@ def create_table(
     try:
         table = client.create_table(name=name, columns=col_list)
     except DatabarError as e:
-        error(str(e))
+        error(e)
     finally:
         client.close()
 
@@ -99,7 +102,7 @@ def delete_table(
     try:
         client.delete_table(table_uuid)
     except DatabarError as e:
-        error(str(e))
+        error(e)
     finally:
         client.close()
 
@@ -117,12 +120,13 @@ def get_columns(
     try:
         columns = client.get_columns(table_uuid)
     except DatabarError as e:
-        error(str(e))
+        error(e)
     finally:
         client.close()
 
     if not columns:
         info("No columns found.")
+        output([], fmt, out=out)
         return
 
     rows = [
@@ -150,7 +154,7 @@ def get_rows(
     try:
         data = client.get_rows(table_uuid, page=page, per_page=per_page)
     except DatabarError as e:
-        error(str(e))
+        error(e)
     finally:
         client.close()
 
@@ -187,7 +191,10 @@ def insert_rows(
 ) -> None:
     """Insert rows into a table."""
     raw_rows = _load_rows(data_json, input_file)
-    rows = [InsertRow(fields=r) for r in raw_rows]
+    try:
+        rows = [InsertRow(fields=r) for r in raw_rows]
+    except ValidationError as e:
+        error(f"Invalid row data: {e}")
 
     options = InsertOptions(allow_new_columns=allow_new_columns)
     if dedupe_keys:
@@ -201,7 +208,7 @@ def insert_rows(
         info(f"Inserting {len(rows)} row(s) into {table_uuid}…")
         response = client.create_rows(table_uuid, rows, options=options)
     except DatabarError as e:
-        error(str(e))
+        error(e)
     finally:
         client.close()
 
@@ -228,17 +235,20 @@ def patch_rows(
     """Update existing rows by row UUID."""
     raw_rows = _load_rows(data_json, input_file)
     rows = []
-    for r in raw_rows:
+    for i, r in enumerate(raw_rows):
         if "id" not in r:
-            error("Each row must have an 'id' field for patch operations.")
-        rows.append(BatchUpdateRow(id=r.pop("id"), fields=r))
+            error(f"Row {i} must have an 'id' field for patch operations.")
+        try:
+            rows.append(BatchUpdateRow(id=r.pop("id"), fields=r))
+        except ValidationError as e:
+            error(f"Invalid row data at index {i}: {e}")
 
     client = get_client()
     try:
         info(f"Patching {len(rows)} row(s) in {table_uuid}…")
         response = client.patch_rows(table_uuid, rows, overwrite=not no_overwrite)
     except DatabarError as e:
-        error(str(e))
+        error(e)
     finally:
         client.close()
 
@@ -267,18 +277,21 @@ def upsert_rows(
     """Insert or update rows matched by a key column."""
     raw_rows = _load_rows(data_json, input_file)
     rows = []
-    for r in raw_rows:
+    for i, r in enumerate(raw_rows):
         if key_col not in r:
-            error(f"Each row must contain the key column '{key_col}'.")
+            error(f"Row {i} must contain the key column '{key_col}'.")
         key_val = r.pop(key_col)
-        rows.append(UpsertRow(key={key_col: key_val}, fields=r))
+        try:
+            rows.append(UpsertRow(key={key_col: key_val}, fields=r))
+        except ValidationError as e:
+            error(f"Invalid row data at index {i}: {e}")
 
     client = get_client()
     try:
         info(f"Upserting {len(rows)} row(s) in {table_uuid} on key '{key_col}'…")
         response = client.upsert_rows(table_uuid, rows)
     except DatabarError as e:
-        error(str(e))
+        error(e)
     finally:
         client.close()
 
@@ -308,12 +321,13 @@ def table_enrichments(
     try:
         enrichments = client.get_table_enrichments(table_uuid)
     except DatabarError as e:
-        error(str(e))
+        error(e)
     finally:
         client.close()
 
     if not enrichments:
         info("No enrichments configured on this table.")
+        output([], fmt, out=out)
         return
 
     rows = [{"id": e.id, "name": e.name} for e in enrichments]
@@ -337,7 +351,7 @@ def add_enrichment(
     try:
         result = client.add_enrichment(table_uuid, enrichment_id, mapping)
     except DatabarError as e:
-        error(str(e))
+        error(e)
     finally:
         client.close()
 
@@ -356,7 +370,7 @@ def run_table_enrichment(
     try:
         result = client.run_table_enrichment(table_uuid, enrichment_id, run_strategy=run_strategy)
     except DatabarError as e:
-        error(str(e))
+        error(e)
     finally:
         client.close()
 
@@ -381,6 +395,9 @@ def _load_rows(data_json: Optional[str], input_file: Optional[Path]) -> list[dic
             error(f"Invalid JSON for --data: {e}")
         if not isinstance(parsed, list):
             error("--data must be a JSON array of objects.")
+        for i, item in enumerate(parsed):
+            if not isinstance(item, dict):
+                error(f"--data[{i}] must be a JSON object, got {type(item).__name__}.")
         return parsed
 
     if input_file:

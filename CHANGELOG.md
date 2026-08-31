@@ -6,6 +6,16 @@ All notable changes to the Databar Python SDK are documented here.
 
 ## [Unreleased]
 
+### Changed
+
+- **CLI `--format json` envelope (breaking)** — success and failure both emit a
+  single JSON object on stdout:
+  `{"ok": true, "data": ...}` / `{"ok": false, "error": {"code", "message", "hint"?}}`.
+  Agents must read `.data` (e.g. `jq '.data[].name'`). Errors no longer leave
+  stdout empty with prose on stderr.
+- **CLI exit codes** — usage → 2, auth → 3, not found → 4, validation → 5;
+  other failures stay 1.
+
 ### Added
 
 - **Exporter dynamic fields** — `get_exporter` returns `additional_params`
@@ -24,6 +34,16 @@ All notable changes to the Databar Python SDK are documented here.
 - **`DatabarTaskCancelledError`** — raised by `poll_task` when a task was
   cancelled. Carries `.partial_data`, which is *not* aligned to the inputs (the
   rows that never ran leave no gap), so it can't be joined back by position.
+
+### Fixed
+
+- **`--format json` on errors** — failures honor the format flag (DEV-5133).
+- **Rich mid-word wrap on errors** — prose errors use soft wrap so stderr
+  matching is not broken by terminal width.
+- **Malformed `--data` traceback** — `table insert` / `patch` / `upsert` with a
+  JSON array of non-objects (e.g. `--data '[1]'`) now emit a clear validation
+  error instead of a Rich/Pydantic traceback that leaked local filesystem paths.
+  Typer pretty exceptions are off by default; set `DATABAR_DEBUG=1` to re-enable.
 
 ---
 

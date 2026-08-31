@@ -16,7 +16,7 @@ import pytest
 from typer.testing import CliRunner
 
 from databar.cli.app import app
-from databar.exceptions import DatabarAuthError, DatabarError
+from databar.exceptions import DatabarAuthError, DatabarError, DatabarNotFoundError
 from databar.models import (
     BatchInsertResponse,
     BatchInsertResultItem,
@@ -188,7 +188,35 @@ def test_whoami_json(monkeypatch):
     result = invoke(["whoami", "--format", "json"])
     assert result.exit_code == 0
     parsed = json.loads(result.output)
-    assert parsed["email"] == "alice@example.com"
+    assert parsed["ok"] is True
+    assert parsed["data"]["email"] == "alice@example.com"
+
+
+def test_whoami_json_missing_api_key(tmp_path, monkeypatch):
+    monkeypatch.delenv("DATABAR_API_KEY", raising=False)
+    monkeypatch.setattr("databar.cli._auth.CONFIG_FILE", tmp_path / "config")
+    result = runner.invoke(app, ["whoami", "--format", "json"])
+    assert result.exit_code == 3
+    assert (result.stderr or "") == ""
+    parsed = json.loads(result.stdout)
+    assert parsed["ok"] is False
+    assert parsed["error"]["code"] == "auth_missing"
+    assert "api key" in parsed["error"]["message"].lower() or "login" in parsed["error"]["message"].lower()
+
+
+def test_whoami_json_auth_invalid(monkeypatch):
+    mock = _client_mock()
+    mock.get_user.side_effect = DatabarAuthError(
+        "Invalid API key or insufficient permissions. Check your API key.",
+        status_code=401,
+    )
+    monkeypatch.setattr("databar.cli._auth.get_client", lambda: mock)
+    result = invoke(["whoami", "--format", "json"])
+    assert result.exit_code == 3
+    assert (result.stderr or "") == ""
+    parsed = json.loads(result.stdout)
+    assert parsed["ok"] is False
+    assert parsed["error"]["code"] == "auth_invalid"
 
 
 # ===========================================================================
@@ -209,9 +237,22 @@ def test_enrich_list_json(monkeypatch):
     monkeypatch.setattr("databar.cli.enrichments.get_client", lambda: mock)
     result = invoke(["enrich", "list", "--format", "json"])
     assert result.exit_code == 0
-    data = json.loads(result.output)
+    envelope = json.loads(result.output)
+    assert envelope["ok"] is True
+    data = envelope["data"]
     assert isinstance(data, list)
     assert data[0]["id"] == 1
+
+
+def test_enrich_run_invalid_json_format_json(monkeypatch):
+    mock = _client_mock()
+    monkeypatch.setattr("databar.cli.enrichments.get_client", lambda: mock)
+    result = invoke(["enrich", "run", "1", "--params", "not-json", "--format", "json"])
+    assert result.exit_code == 2
+    assert (result.stderr or "") == ""
+    parsed = json.loads(result.stdout)
+    assert parsed["ok"] is False
+    assert parsed["error"]["code"] == "usage"
 
 
 def test_enrich_get(monkeypatch):
@@ -354,9 +395,22 @@ def test_table_rows_json(monkeypatch):
     monkeypatch.setattr("databar.cli.tables.get_client", lambda: mock)
     result = invoke(["table", "rows", "tbl-1", "--format", "json"])
     assert result.exit_code == 0
-    data = json.loads(result.output)
-    assert data[0]["email"] == "alice@example.com"
+    envelope = json.loads(result.output)
+    assert envelope["ok"] is True
+    assert envelope["data"][0]["email"] == "alice@example.com"
     mock.get_rows.assert_called_once_with("tbl-1", page=1, per_page=500)
+
+
+def test_table_rows_json_not_found(monkeypatch):
+    mock = _client_mock()
+    mock.get_rows.side_effect = DatabarNotFoundError("Resource not found.", status_code=404)
+    monkeypatch.setattr("databar.cli.tables.get_client", lambda: mock)
+    result = invoke(["table", "rows", "foo%2Fbar", "--format", "json"])
+    assert result.exit_code == 4
+    assert (result.stderr or "") == ""
+    parsed = json.loads(result.stdout)
+    assert parsed["ok"] is False
+    assert parsed["error"]["code"] == "not_found"
 
 
 def test_table_rows_rejects_bad_per_page(monkeypatch):
@@ -411,6 +465,76 @@ def test_table_insert_requires_data_or_input(monkeypatch):
     assert result.exit_code != 0
 
 
+def _stderr(result) -> str:
+    return result.stderr if hasattr(result, "stderr") and result.stderr else ""
+
+
+def test_table_insert_rejects_non_object_data(monkeypatch):
+    mock = _client_mock()
+    monkeypatch.setattr("databar.cli.tables.get_client", lambda: mock)
+    result = invoke(["table", "insert", "tbl-1", "--data", "[1]", "--format", "json"])
+    assert result.exit_code == 2
+    mock.create_rows.assert_not_called()
+    assert _stderr(result) == ""
+    parsed = json.loads(result.stdout)
+    assert parsed["ok"] is False
+    assert parsed["error"]["code"] == "usage"
+    assert "--data[0]" in parsed["error"]["message"]
+    assert "object" in parsed["error"]["message"]
+    assert "Traceback" not in parsed["error"]["message"]
+    assert "ValidationError" not in parsed["error"]["message"]
+
+
+def test_table_insert_rejects_non_object_at_index(monkeypatch):
+    mock = _client_mock()
+    monkeypatch.setattr("databar.cli.tables.get_client", lambda: mock)
+    result = invoke(
+        ["table", "insert", "tbl-1", "--data", '[{"email":"a@b.com"}, 1]']
+    )
+    assert result.exit_code != 0
+    mock.create_rows.assert_not_called()
+    assert "--data[1]" in _stderr(result)
+
+
+def test_table_insert_rejects_non_array_data(monkeypatch):
+    mock = _client_mock()
+    monkeypatch.setattr("databar.cli.tables.get_client", lambda: mock)
+    result = invoke(["table", "insert", "tbl-1", "--data", "{}"])
+    assert result.exit_code != 0
+    mock.create_rows.assert_not_called()
+    assert "JSON array of objects" in _stderr(result)
+
+
+def test_table_patch_rejects_non_object_data(monkeypatch):
+    mock = _client_mock()
+    monkeypatch.setattr("databar.cli.tables.get_client", lambda: mock)
+    result = invoke(["table", "patch", "tbl-1", "--data", "[1]"])
+    assert result.exit_code != 0
+    mock.patch_rows.assert_not_called()
+    err = _stderr(result)
+    assert "--data[0]" in err
+    assert "Traceback" not in err
+
+
+def test_table_upsert_rejects_non_object_data(monkeypatch):
+    mock = _client_mock()
+    monkeypatch.setattr("databar.cli.tables.get_client", lambda: mock)
+    result = invoke(
+        ["table", "upsert", "tbl-1", "--key-col", "email", "--data", "[1]"]
+    )
+    assert result.exit_code != 0
+    mock.upsert_rows.assert_not_called()
+    err = _stderr(result)
+    assert "--data[0]" in err
+    assert "Traceback" not in err
+
+
+def test_pretty_exceptions_disabled_by_default():
+    from databar.cli.app import app as cli_app
+
+    assert cli_app.pretty_exceptions_enable is False
+
+
 def test_table_enrichments(monkeypatch):
     mock = _client_mock()
     monkeypatch.setattr("databar.cli.tables.get_client", lambda: mock)
@@ -453,6 +577,21 @@ def test_task_get(monkeypatch):
     result = invoke(["task", "get", "t1"])
     assert result.exit_code == 0
     assert "completed" in result.output.lower()
+
+
+def test_task_get_json_with_task_error(monkeypatch):
+    mock = _client_mock()
+    mock.get_task.return_value = TaskResponse(
+        task_id="t1", status="failed", data=None, error=["upstream blew up"]
+    )
+    monkeypatch.setattr("databar.cli.tasks.get_client", lambda: mock)
+    result = invoke(["task", "get", "t1", "--format", "json"])
+    assert result.exit_code == 1
+    assert (result.stderr or "") == ""
+    parsed = json.loads(result.stdout)
+    assert parsed["ok"] is False
+    assert parsed["error"]["code"] == "task_failed"
+    assert "upstream blew up" in parsed["error"]["message"]
 
 
 def test_task_get_poll(monkeypatch):
@@ -511,4 +650,4 @@ def test_task_cancel_reports_a_finished_task(monkeypatch):
 def test_version_flag():
     result = runner.invoke(app, ["--version"])
     assert result.exit_code == 0
-    assert "2.3.0" in result.output
+    assert "2.4.0" in result.output

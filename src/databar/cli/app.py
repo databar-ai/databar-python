@@ -6,6 +6,8 @@ Registers all subcommand groups and exposes top-level login/whoami commands.
 
 from __future__ import annotations
 
+import os
+
 import typer
 
 from databar import __version__
@@ -21,6 +23,7 @@ app = typer.Typer(
     ),
     no_args_is_help=True,
     rich_markup_mode="rich",
+    pretty_exceptions_enable=os.environ.get("DATABAR_DEBUG") == "1",
 )
 
 # Top-level auth commands (login + whoami) live directly on the root app

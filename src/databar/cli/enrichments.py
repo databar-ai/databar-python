@@ -36,12 +36,13 @@ def list_enrichments(
     try:
         enrichments = client.list_enrichments(q=query)
     except DatabarError as e:
-        error(str(e))
+        error(e)
     finally:
         client.close()
 
     if not enrichments:
         info("No enrichments found.")
+        output([], fmt, out=out)
         return
 
     rows = [
@@ -67,7 +68,7 @@ def get_enrichment(
     try:
         e = client.get_enrichment(enrichment_id)
     except DatabarError as exc:
-        error(str(exc))
+        error(exc)
     finally:
         client.close()
 
@@ -127,7 +128,7 @@ def run_enrichment(
         info(f"Running enrichment #{enrichment_id}…")
         result = client.run_enrichment_sync(enrichment_id, params)
     except DatabarError as exc:
-        error(str(exc))
+        error(exc)
     finally:
         client.close()
 
@@ -155,7 +156,7 @@ def bulk_enrichment(
         info(f"Running bulk enrichment #{enrichment_id} for {len(params_list)} rows…")
         result = client.run_enrichment_bulk_sync(enrichment_id, params_list)
     except DatabarError as exc:
-        error(str(exc))
+        error(exc)
     finally:
         client.close()
 
@@ -182,7 +183,7 @@ def param_choices(
     try:
         response = client.get_param_choices(enrichment_id, param_slug, q=query, page=page, limit=limit)
     except DatabarError as exc:
-        error(str(exc))
+        error(exc)
     finally:
         client.close()
 

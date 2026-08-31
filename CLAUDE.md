@@ -95,9 +95,12 @@ echo 'export PATH="$(python3 -m site --user-base)/bin:$PATH"' >> ~/.zshrc
 
 ## CLI Quick Reference
 
-All commands support `--format table|json|csv` (default: `table`).  
+All commands support `--format table|json|csv` (default: `table`). 
 **Always use `--format json` when parsing or piping output** — the default `table`
-format uses Rich terminal formatting that is not machine-parseable.
+format uses Rich terminal formatting that is not machine-parseable. JSON is an
+envelope: `{"ok": true, "data": ...}` / `{"ok": false, "error": {...}}` — read
+`.data` (e.g. `jq '.data[].name'`). Exit codes: 2 usage, 3 auth, 4 not found,
+5 validation, 1 other.
 
 ### Enrichments
 

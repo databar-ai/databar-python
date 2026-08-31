@@ -46,7 +46,8 @@ def get_api_key() -> str:
         "No API key found.\n"
         "  Run [bold]databar login[/bold] to save your key, or set the "
         "[bold]DATABAR_API_KEY[/bold] environment variable.\n"
-        "  Get your key at [link=https://databar.ai]databar.ai[/link] → Integrations."
+        "  Get your key at [link=https://databar.ai]databar.ai[/link] → Integrations.",
+        code="auth_missing",
     )
     raise typer.Exit(1)  # unreachable but satisfies type checkers
 
@@ -111,7 +112,7 @@ def whoami(
     try:
         user = client.get_user()
     except DatabarError as e:
-        error(str(e))
+        error(e)
     finally:
         client.close()
 

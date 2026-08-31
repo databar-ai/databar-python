@@ -479,11 +479,14 @@ databar task cancel <task-id>
 
 ### Output formats
 
-All commands support `--format table|json|csv` (default: `table`):
+All commands support `--format table|json|csv` (default: `table`).
+
+`--format json` prints one envelope on stdout:
+`{"ok": true, "data": ...}` or `{"ok": false, "error": {"code", "message", ...}}`.
 
 ```bash
-# Pipe JSON output
-databar table rows <uuid> --format json | jq '.[].email'
+# Pipe JSON output (payload is under .data)
+databar table rows <uuid> --format json | jq '.data[].email'
 
 # Save to CSV
 databar enrich bulk 123 --input input.csv --format csv --out output.csv

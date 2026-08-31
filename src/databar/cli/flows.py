@@ -33,7 +33,7 @@ def list_flows(
     try:
         flows = client.list_flows()
     except DatabarError as e:
-        error(str(e))
+        error(e)
     finally:
         client.close()
 
@@ -46,6 +46,7 @@ def list_flows(
 
     if not flows:
         info("No flows found.")
+        output([], fmt, out=out)
         return
 
     rows = [
@@ -70,7 +71,7 @@ def get_flow(
     try:
         f = client.get_flow(flow_id)
     except DatabarError as exc:
-        error(str(exc))
+        error(exc)
     finally:
         client.close()
 
@@ -113,7 +114,7 @@ def run_flow(
         info(f"Running flow '{flow_id}'…")
         result = client.run_flow_sync(flow_id, inputs)
     except DatabarError as exc:
-        error(str(exc))
+        error(exc)
     finally:
         client.close()
 

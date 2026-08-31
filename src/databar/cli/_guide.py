@@ -110,6 +110,11 @@ echo 'export PATH="$(python3 -m site --user-base)/bin:$PATH"' >> ~/.zshrc
 **Always use `--format json` when parsing or piping output.**
 The default `table` format uses Rich terminal markup — not machine-parseable.
 
+JSON output is always one envelope on stdout:
+`{"ok": true, "data": ...}` or `{"ok": false, "error": {"code", "message", "hint"?}}`.
+Read results from `.data` (e.g. `jq '.data[].name'`). Exit codes: 2 usage, 3 auth,
+4 not found, 5 validation, 1 other.
+
 ### Enrichments
 ```bash
 databar enrich list --format json
