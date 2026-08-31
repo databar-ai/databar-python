@@ -18,6 +18,12 @@ All notable changes to the Databar Python SDK are documented here.
 
 ### Added
 
+- **CLI UUID validation (DEV-5135)** — `table` and `task` identifier args are
+  checked client-side before any request. Bad values (e.g. `foo%2Fbar`) fail with
+  `code: validation` / exit 5 and a UUID hint, instead of a bare API 404.
+- **CLI `--out` normalization (DEV-5135)** — output paths are resolved; null bytes
+  are rejected; a note is printed when the resolved path leaves the current
+  directory.
 - **Exporter dynamic fields** — `get_exporter` returns `additional_params`
   (HubSpot/Pipedrive property names) when a connection is available. Pass them
   via `add_exporter(..., additional_mapping={...})` — not via `mapping`.

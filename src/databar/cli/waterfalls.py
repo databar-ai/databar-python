@@ -28,7 +28,7 @@ app = typer.Typer(help="Search and run waterfall enrichments.")
 def list_waterfalls(
     query: Optional[str] = typer.Option(None, "--query", "-q", help="Filter by name/description."),
     fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "--output", "-f"),
-    out: Optional[Path] = typer.Option(None, "--out", "-o", help="Output file (for CSV format)."),
+    out: Optional[str] = typer.Option(None, "--out", "-o", help="Output file (for CSV format)."),
 ) -> None:
     """List available waterfall enrichments."""
     client = get_client()
@@ -163,7 +163,7 @@ def bulk_waterfall(
     providers: Optional[str] = typer.Option(None, "--providers", help="Comma-separated provider IDs (default: all)."),
     email_verifier: Optional[int] = typer.Option(None, "--email-verifier", help="Email verifier enrichment ID."),
     fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "--output", "-f"),
-    out: Optional[Path] = typer.Option(None, "--out", "-o", help="Output file (for CSV format)."),
+    out: Optional[str] = typer.Option(None, "--out", "-o", help="Output file (for CSV format)."),
 ) -> None:
     """Run a waterfall enrichment in bulk from a CSV input file."""
     params_list = _read_csv_as_dicts(input_file)

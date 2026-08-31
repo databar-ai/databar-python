@@ -29,7 +29,7 @@ app = typer.Typer(help="Search and run data enrichments.")
 def list_enrichments(
     query: Optional[str] = typer.Option(None, "--query", "-q", help="Search query."),
     fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "--output", "-f"),
-    out: Optional[Path] = typer.Option(None, "--out", "-o", help="Output file (for CSV format)."),
+    out: Optional[str] = typer.Option(None, "--out", "-o", help="Output file (for CSV format)."),
 ) -> None:
     """List available enrichments."""
     client = get_client()
@@ -144,7 +144,7 @@ def bulk_enrichment(
     enrichment_id: int = typer.Argument(..., help="Enrichment ID."),
     input_file: Path = typer.Option(..., "--input", "-i", help="CSV file with one row per input.", exists=True),
     fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "--output", "-f"),
-    out: Optional[Path] = typer.Option(None, "--out", "-o", help="Output file (for CSV format)."),
+    out: Optional[str] = typer.Option(None, "--out", "-o", help="Output file (for CSV format)."),
 ) -> None:
     """Run a bulk enrichment from a CSV input file."""
     params_list = _read_csv_as_dicts(input_file)
@@ -171,7 +171,7 @@ def param_choices(
     page: int = typer.Option(1, "--page", help="Page number (min 1)."),
     limit: int = typer.Option(50, "--limit", help="Results per page (max 500)."),
     fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "--output", "-f"),
-    out: Optional[Path] = typer.Option(None, "--out", "-o", help="Output file (for CSV format)."),
+    out: Optional[str] = typer.Option(None, "--out", "-o", help="Output file (for CSV format)."),
 ) -> None:
     """List available choices for a select/mselect enrichment parameter."""
     if page < 1:

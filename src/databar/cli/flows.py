@@ -9,7 +9,6 @@ CLI commands for flows.
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from typing import Optional
 
 import typer
@@ -26,7 +25,7 @@ app = typer.Typer(help="List and run saved flows.")
 def list_flows(
     query: Optional[str] = typer.Option(None, "--query", "-q", help="Filter by name/description."),
     fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "--output", "-f"),
-    out: Optional[Path] = typer.Option(None, "--out", "-o", help="Output file (for CSV format)."),
+    out: Optional[str] = typer.Option(None, "--out", "-o", help="Output file (for CSV format)."),
 ) -> None:
     """List saved flows in the workspace."""
     client = get_client()

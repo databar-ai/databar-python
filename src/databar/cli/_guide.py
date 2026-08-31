@@ -162,6 +162,11 @@ databar table run-enrichment <table-uuid> --enrichment-id <TABLE-ENRICHMENT-ID>
 NOTE: `run-enrichment` takes the TABLE-ENRICHMENT ID (from `add-enrichment` or
 `table enrichments`), NOT the catalog enrichment ID. These are different numbers.
 
+NOTE: `<table-uuid>` and `<task-id>` must be UUIDs
+(`xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`). Bad values fail client-side with
+`code: validation` / exit 5 (not a 404). `--out` paths are resolved; null bytes
+are rejected.
+
 ### Tasks
 ```bash
 databar task get <task-id> --format json    # check once; bulk tasks report progress

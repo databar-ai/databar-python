@@ -29,11 +29,18 @@ from databar.exceptions import DatabarError
 from databar.models import BatchUpdateRow, InsertOptions, InsertRow, DedupeOptions, RowsResponse, UpsertRow
 
 from ._auth import get_client
-from ._output import OutputFormat, error, info, output, success
+from ._output import OutputFormat, error, info, output, require_uuid, success
 
 app = typer.Typer(help="Manage tables and rows.")
 
 _MAX_PER_PAGE = 500
+
+
+def _table_uuid_arg(value: str) -> str:
+    return require_uuid(value, "table UUID")
+
+
+_TABLE_UUID = typer.Argument(..., help="Table UUID.", callback=_table_uuid_arg)
 
 
 def _parse_columns(columns: Optional[str]) -> Optional[list[str]]:
@@ -49,7 +56,7 @@ def _parse_columns(columns: Optional[str]) -> Optional[list[str]]:
 @app.command("list")
 def list_tables(
     fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "--output", "-f"),
-    out: Optional[Path] = typer.Option(None, "--out", "-o", help="Output file (for CSV format)."),
+    out: Optional[str] = typer.Option(None, "--out", "-o", help="Output file (for CSV format)."),
 ) -> None:
     """List all tables in your workspace."""
     client = get_client()
@@ -95,7 +102,7 @@ def create_table(
 
 @app.command("delete")
 def delete_table(
-    table_uuid: str = typer.Argument(..., help="Table UUID."),
+    table_uuid: str = _TABLE_UUID,
 ) -> None:
     """Delete a table and all its rows."""
     client = get_client()
@@ -111,9 +118,9 @@ def delete_table(
 
 @app.command("columns")
 def get_columns(
-    table_uuid: str = typer.Argument(..., help="Table UUID."),
+    table_uuid: str = _TABLE_UUID,
     fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "--output", "-f"),
-    out: Optional[Path] = typer.Option(None, "--out", "-o", help="Output file (for CSV format)."),
+    out: Optional[str] = typer.Option(None, "--out", "-o", help="Output file (for CSV format)."),
 ) -> None:
     """List columns defined on a table."""
     client = get_client()
@@ -138,11 +145,11 @@ def get_columns(
 
 @app.command("rows")
 def get_rows(
-    table_uuid: str = typer.Argument(..., help="Table UUID."),
+    table_uuid: str = _TABLE_UUID,
     page: int = typer.Option(1, "--page", help="Page number (min 1)."),
     per_page: int = typer.Option(_MAX_PER_PAGE, "--per-page", help=f"Rows per page (max {_MAX_PER_PAGE})."),
     fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "--output", "-f"),
-    out: Optional[Path] = typer.Option(None, "--out", "-o", help="Output file (for CSV format)."),
+    out: Optional[str] = typer.Option(None, "--out", "-o", help="Output file (for CSV format)."),
 ) -> None:
     """Get rows from a table."""
     if page < 1:
@@ -182,7 +189,7 @@ def get_rows(
 
 @app.command("insert")
 def insert_rows(
-    table_uuid: str = typer.Argument(..., help="Table UUID."),
+    table_uuid: str = _TABLE_UUID,
     data_json: Optional[str] = typer.Option(None, "--data", "-d", help="JSON array of row objects."),
     input_file: Optional[Path] = typer.Option(None, "--input", "-i", help="CSV file.", exists=True),
     allow_new_columns: bool = typer.Option(False, "--allow-new-columns", help="Auto-create unknown columns."),
@@ -226,7 +233,7 @@ def insert_rows(
 
 @app.command("patch")
 def patch_rows(
-    table_uuid: str = typer.Argument(..., help="Table UUID."),
+    table_uuid: str = _TABLE_UUID,
     data_json: Optional[str] = typer.Option(None, "--data", "-d", help='JSON array: [{"id":"<uuid>","fields":{...}}]'),
     input_file: Optional[Path] = typer.Option(None, "--input", "-i", help="CSV file (must have an 'id' column).", exists=True),
     no_overwrite: bool = typer.Option(False, "--no-overwrite", help="Only fill empty cells; keep existing values."),
@@ -268,7 +275,7 @@ def patch_rows(
 
 @app.command("upsert")
 def upsert_rows(
-    table_uuid: str = typer.Argument(..., help="Table UUID."),
+    table_uuid: str = _TABLE_UUID,
     key_col: str = typer.Option(..., "--key-col", "-k", help="Column name to match on (e.g. 'email')."),
     data_json: Optional[str] = typer.Option(None, "--data", "-d", help="JSON array of row objects."),
     input_file: Optional[Path] = typer.Option(None, "--input", "-i", help="CSV file.", exists=True),
@@ -312,9 +319,9 @@ def upsert_rows(
 
 @app.command("enrichments")
 def table_enrichments(
-    table_uuid: str = typer.Argument(..., help="Table UUID."),
+    table_uuid: str = _TABLE_UUID,
     fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "--output", "-f"),
-    out: Optional[Path] = typer.Option(None, "--out", "-o", help="Output file (for CSV format)."),
+    out: Optional[str] = typer.Option(None, "--out", "-o", help="Output file (for CSV format)."),
 ) -> None:
     """List enrichments configured on a table."""
     client = get_client()
@@ -336,7 +343,7 @@ def table_enrichments(
 
 @app.command("add-enrichment")
 def add_enrichment(
-    table_uuid: str = typer.Argument(..., help="Table UUID."),
+    table_uuid: str = _TABLE_UUID,
     enrichment_id: int = typer.Option(..., "--enrichment-id", "-e", help="Enrichment ID to add."),
     mapping_json: str = typer.Option(..., "--mapping", "-m", help='JSON mapping of param → column, e.g. \'{"email": "email_col"}\''),
     fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "--output", "-f"),
@@ -361,7 +368,7 @@ def add_enrichment(
 
 @app.command("run-enrichment")
 def run_table_enrichment(
-    table_uuid: str = typer.Argument(..., help="Table UUID."),
+    table_uuid: str = _TABLE_UUID,
     enrichment_id: str = typer.Option(..., "--enrichment-id", "-e", help="Table enrichment ID (from `table enrichments`)."),
     run_strategy: Optional[str] = typer.Option(None, "--run-strategy", help="Run strategy (e.g. 'empty_only')."),
 ) -> None:

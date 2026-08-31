@@ -12,7 +12,7 @@ import typer
 from databar.exceptions import DatabarError, DatabarTaskFailedError, DatabarTimeoutError
 
 from ._auth import get_client
-from ._output import OutputFormat, console, error, info, output
+from ._output import OutputFormat, console, error, info, output, require_uuid
 
 app = typer.Typer(help="Check the status of async tasks.")
 
@@ -24,6 +24,17 @@ _STATUS_STYLES = {
     "cancelled": "bold yellow",
     "gone": "dim",
 }
+
+
+def _task_id_arg(value: str) -> str:
+    return require_uuid(value, "task ID")
+
+
+_TASK_ID = typer.Argument(
+    ...,
+    help="Task ID returned by a run or bulk-run call.",
+    callback=_task_id_arg,
+)
 
 
 def _print_status(task) -> None:
@@ -40,7 +51,7 @@ def _print_status(task) -> None:
 
 @app.command("get")
 def get_task(
-    task_id: str = typer.Argument(..., help="Task ID returned by a run or bulk-run call."),
+    task_id: str = _TASK_ID,
     fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "--output", "-f"),
     poll: bool = typer.Option(
         False,
@@ -92,7 +103,7 @@ def get_task(
 
 @app.command("cancel")
 def cancel_task(
-    task_id: str = typer.Argument(..., help="Task ID of a running task."),
+    task_id: str = typer.Argument(..., help="Task ID of a running task.", callback=_task_id_arg),
 ) -> None:
     """Stop a running task. Rows that already finished keep their results."""
     client = get_client()

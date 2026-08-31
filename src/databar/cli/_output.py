@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import csv
 import json
+import os
+import re
 import sys
 from enum import Enum
 from pathlib import Path
@@ -36,6 +38,11 @@ from databar.exceptions import (
     DatabarTaskFailedError,
     DatabarTimeoutError,
     DatabarValidationError,
+)
+
+# Canonical 8-4-4-4-12 only — uuid.UUID() also accepts braces / urn:uuid:.
+_UUID_RE = re.compile(
+    r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
 )
 
 # Force UTF-8 on stdout/stderr before any Console is created. On Windows, a
@@ -178,7 +185,35 @@ def output_table(rows: list[dict], columns: list[str] | None = None) -> None:
     console.print(table)
 
 
-def output_csv(rows: list[dict], columns: list[str] | None = None, out: Path | None = None) -> None:
+def require_uuid(value: str, kind: str = "identifier") -> str:
+    """Reject non-UUID path args before they hit the API (DEV-5135)."""
+    if not _UUID_RE.fullmatch(value):
+        error(
+            f"Invalid {kind}: {value!r}.",
+            code="validation",
+            hint="Expected a UUID (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx).",
+        )
+    return value
+
+
+def normalize_out(out: Union[str, Path]) -> Path:
+    """Resolve --out; reject null bytes; note when the path leaves CWD."""
+    raw = out if isinstance(out, str) else os.fspath(out)
+    if "\0" in raw:
+        error("Invalid --out path: contains a null byte.", code="validation")
+    resolved = Path(raw).expanduser().resolve()
+    try:
+        resolved.relative_to(Path.cwd().resolve())
+    except ValueError:
+        info(f"Note: --out resolves outside the current directory: {resolved}")
+    return resolved
+
+
+def output_csv(
+    rows: list[dict],
+    columns: list[str] | None = None,
+    out: Union[str, Path] | None = None,
+) -> None:
     """
     Write rows as CSV.
 
@@ -188,6 +223,8 @@ def output_csv(rows: list[dict], columns: list[str] | None = None, out: Path | N
         return
 
     cols = columns or list(rows[0].keys())
+    if out is not None:
+        out = normalize_out(out)
     dest = open(out, "w", newline="", encoding="utf-8") if out else sys.stdout
     writer = csv.DictWriter(dest, fieldnames=cols, extrasaction="ignore")
     writer.writeheader()
@@ -201,7 +238,7 @@ def output(
     data: Any,
     fmt: OutputFormat,
     table_columns: list[str] | None = None,
-    out: Path | None = None,
+    out: Union[str, Path] | None = None,
 ) -> None:
     """
     Unified output dispatcher — routes to the right format handler.

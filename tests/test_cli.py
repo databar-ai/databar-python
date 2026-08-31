@@ -8,7 +8,6 @@ Each test verifies the CLI command wires correctly to the SDK and formats output
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -43,6 +42,8 @@ from databar.models import (
 
 runner = CliRunner(mix_stderr=False)
 FAKE_KEY = "test-api-key"
+TABLE_UUID = "11111111-1111-1111-1111-111111111111"
+TASK_ID = "22222222-2222-2222-2222-222222222222"
 
 
 def _client_mock(**method_overrides):
@@ -385,27 +386,27 @@ def test_table_create_strips_empty_columns(monkeypatch):
 def test_table_delete(monkeypatch):
     mock = _client_mock()
     monkeypatch.setattr("databar.cli.tables.get_client", lambda: mock)
-    result = invoke(["table", "delete", "tbl-1"])
+    result = invoke(["table", "delete", TABLE_UUID])
     assert result.exit_code == 0
-    mock.delete_table.assert_called_once_with("tbl-1")
+    mock.delete_table.assert_called_once_with(TABLE_UUID)
 
 
 def test_table_rows_json(monkeypatch):
     mock = _client_mock()
     monkeypatch.setattr("databar.cli.tables.get_client", lambda: mock)
-    result = invoke(["table", "rows", "tbl-1", "--format", "json"])
+    result = invoke(["table", "rows", TABLE_UUID, "--format", "json"])
     assert result.exit_code == 0
     envelope = json.loads(result.output)
     assert envelope["ok"] is True
     assert envelope["data"][0]["email"] == "alice@example.com"
-    mock.get_rows.assert_called_once_with("tbl-1", page=1, per_page=500)
+    mock.get_rows.assert_called_once_with(TABLE_UUID, page=1, per_page=500)
 
 
 def test_table_rows_json_not_found(monkeypatch):
     mock = _client_mock()
     mock.get_rows.side_effect = DatabarNotFoundError("Resource not found.", status_code=404)
     monkeypatch.setattr("databar.cli.tables.get_client", lambda: mock)
-    result = invoke(["table", "rows", "foo%2Fbar", "--format", "json"])
+    result = invoke(["table", "rows", TABLE_UUID, "--format", "json"])
     assert result.exit_code == 4
     assert (result.stderr or "") == ""
     parsed = json.loads(result.stdout)
@@ -413,10 +414,24 @@ def test_table_rows_json_not_found(monkeypatch):
     assert parsed["error"]["code"] == "not_found"
 
 
+def test_table_rows_rejects_invalid_uuid(monkeypatch):
+    mock = _client_mock()
+    monkeypatch.setattr("databar.cli.tables.get_client", lambda: mock)
+    result = invoke(["table", "rows", "foo%2Fbar", "--format", "json"])
+    assert result.exit_code == 5
+    mock.get_rows.assert_not_called()
+    assert (result.stderr or "") == ""
+    parsed = json.loads(result.stdout)
+    assert parsed["ok"] is False
+    assert parsed["error"]["code"] == "validation"
+    assert "hint" in parsed["error"]
+    assert "UUID" in parsed["error"]["hint"]
+
+
 def test_table_rows_rejects_bad_per_page(monkeypatch):
     mock = _client_mock()
     monkeypatch.setattr("databar.cli.tables.get_client", lambda: mock)
-    result = invoke(["table", "rows", "tbl-1", "--per-page", "1000"])
+    result = invoke(["table", "rows", TABLE_UUID, "--per-page", "1000"])
     assert result.exit_code != 0
     mock.get_rows.assert_not_called()
 
@@ -424,7 +439,7 @@ def test_table_rows_rejects_bad_per_page(monkeypatch):
 def test_table_rows_rejects_bad_page(monkeypatch):
     mock = _client_mock()
     monkeypatch.setattr("databar.cli.tables.get_client", lambda: mock)
-    result = invoke(["table", "rows", "tbl-1", "--page", "0"])
+    result = invoke(["table", "rows", TABLE_UUID, "--page", "0"])
     assert result.exit_code != 0
     mock.get_rows.assert_not_called()
 
@@ -440,7 +455,7 @@ def test_table_patch_nonzero_exit_on_failure(monkeypatch):
         [
             "table",
             "patch",
-            "tbl-1",
+            TABLE_UUID,
             "--data",
             '[{"id":"missing","email":"x@y.com"}]',
             "--format",
@@ -453,7 +468,7 @@ def test_table_patch_nonzero_exit_on_failure(monkeypatch):
 def test_table_insert_json_data(monkeypatch):
     mock = _client_mock()
     monkeypatch.setattr("databar.cli.tables.get_client", lambda: mock)
-    result = invoke(["table", "insert", "tbl-1", "--data", '[{"email":"alice@example.com"}]'])
+    result = invoke(["table", "insert", TABLE_UUID, "--data", '[{"email":"alice@example.com"}]'])
     assert result.exit_code == 0
     mock.create_rows.assert_called_once()
 
@@ -461,7 +476,7 @@ def test_table_insert_json_data(monkeypatch):
 def test_table_insert_requires_data_or_input(monkeypatch):
     mock = _client_mock()
     monkeypatch.setattr("databar.cli.tables.get_client", lambda: mock)
-    result = invoke(["table", "insert", "tbl-1"])
+    result = invoke(["table", "insert", TABLE_UUID])
     assert result.exit_code != 0
 
 
@@ -472,7 +487,7 @@ def _stderr(result) -> str:
 def test_table_insert_rejects_non_object_data(monkeypatch):
     mock = _client_mock()
     monkeypatch.setattr("databar.cli.tables.get_client", lambda: mock)
-    result = invoke(["table", "insert", "tbl-1", "--data", "[1]", "--format", "json"])
+    result = invoke(["table", "insert", TABLE_UUID, "--data", "[1]", "--format", "json"])
     assert result.exit_code == 2
     mock.create_rows.assert_not_called()
     assert _stderr(result) == ""
@@ -489,7 +504,7 @@ def test_table_insert_rejects_non_object_at_index(monkeypatch):
     mock = _client_mock()
     monkeypatch.setattr("databar.cli.tables.get_client", lambda: mock)
     result = invoke(
-        ["table", "insert", "tbl-1", "--data", '[{"email":"a@b.com"}, 1]']
+        ["table", "insert", TABLE_UUID, "--data", '[{"email":"a@b.com"}, 1]']
     )
     assert result.exit_code != 0
     mock.create_rows.assert_not_called()
@@ -499,7 +514,7 @@ def test_table_insert_rejects_non_object_at_index(monkeypatch):
 def test_table_insert_rejects_non_array_data(monkeypatch):
     mock = _client_mock()
     monkeypatch.setattr("databar.cli.tables.get_client", lambda: mock)
-    result = invoke(["table", "insert", "tbl-1", "--data", "{}"])
+    result = invoke(["table", "insert", TABLE_UUID, "--data", "{}"])
     assert result.exit_code != 0
     mock.create_rows.assert_not_called()
     assert "JSON array of objects" in _stderr(result)
@@ -508,7 +523,7 @@ def test_table_insert_rejects_non_array_data(monkeypatch):
 def test_table_patch_rejects_non_object_data(monkeypatch):
     mock = _client_mock()
     monkeypatch.setattr("databar.cli.tables.get_client", lambda: mock)
-    result = invoke(["table", "patch", "tbl-1", "--data", "[1]"])
+    result = invoke(["table", "patch", TABLE_UUID, "--data", "[1]"])
     assert result.exit_code != 0
     mock.patch_rows.assert_not_called()
     err = _stderr(result)
@@ -520,7 +535,7 @@ def test_table_upsert_rejects_non_object_data(monkeypatch):
     mock = _client_mock()
     monkeypatch.setattr("databar.cli.tables.get_client", lambda: mock)
     result = invoke(
-        ["table", "upsert", "tbl-1", "--key-col", "email", "--data", "[1]"]
+        ["table", "upsert", TABLE_UUID, "--key-col", "email", "--data", "[1]"]
     )
     assert result.exit_code != 0
     mock.upsert_rows.assert_not_called()
@@ -538,9 +553,48 @@ def test_pretty_exceptions_disabled_by_default():
 def test_table_enrichments(monkeypatch):
     mock = _client_mock()
     monkeypatch.setattr("databar.cli.tables.get_client", lambda: mock)
-    result = invoke(["table", "enrichments", "tbl-1"])
+    result = invoke(["table", "enrichments", TABLE_UUID])
     assert result.exit_code == 0
     assert "My Enrichment" in result.output
+
+
+def test_table_rows_out_resolves_dotdot(monkeypatch, tmp_path):
+    mock = _client_mock()
+    monkeypatch.setattr("databar.cli.tables.get_client", lambda: mock)
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "sub").mkdir()
+    out_arg = str(Path("sub") / ".." / "out.csv")
+    result = invoke(["table", "rows", TABLE_UUID, "--format", "csv", "--out", out_arg])
+    assert result.exit_code == 0
+    assert (tmp_path / "out.csv").is_file()
+    assert not (tmp_path / "sub" / "out.csv").exists()
+
+
+def test_table_rows_out_rejects_null_byte(monkeypatch, tmp_path):
+    mock = _client_mock()
+    monkeypatch.setattr("databar.cli.tables.get_client", lambda: mock)
+    monkeypatch.chdir(tmp_path)
+    result = invoke(
+        ["table", "rows", TABLE_UUID, "--format", "csv", "--out", "bad\0name.csv"]
+    )
+    assert result.exit_code == 5
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_table_rows_out_notes_outside_cwd(monkeypatch, tmp_path):
+    mock = _client_mock()
+    monkeypatch.setattr("databar.cli.tables.get_client", lambda: mock)
+    cwd = tmp_path / "cwd"
+    outside = tmp_path / "outside"
+    cwd.mkdir()
+    outside.mkdir()
+    monkeypatch.chdir(cwd)
+    out_path = outside / "rows.csv"
+    result = invoke(["table", "rows", TABLE_UUID, "--format", "csv", "--out", str(out_path)])
+    assert result.exit_code == 0
+    assert out_path.is_file()
+    combined = (result.output or "") + _stderr(result)
+    assert "outside the current directory" in combined
 
 
 def test_enrich_choices_rejects_bad_page(monkeypatch):
@@ -574,18 +628,30 @@ def test_output_json_handles_unicode():
 def test_task_get(monkeypatch):
     mock = _client_mock()
     monkeypatch.setattr("databar.cli.tasks.get_client", lambda: mock)
-    result = invoke(["task", "get", "t1"])
+    result = invoke(["task", "get", TASK_ID])
     assert result.exit_code == 0
     assert "completed" in result.output.lower()
+
+
+def test_task_get_rejects_invalid_uuid(monkeypatch):
+    mock = _client_mock()
+    monkeypatch.setattr("databar.cli.tasks.get_client", lambda: mock)
+    result = invoke(["task", "get", "not-a-uuid", "--format", "json"])
+    assert result.exit_code == 5
+    mock.get_task.assert_not_called()
+    parsed = json.loads(result.stdout)
+    assert parsed["ok"] is False
+    assert parsed["error"]["code"] == "validation"
+    assert "hint" in parsed["error"]
 
 
 def test_task_get_json_with_task_error(monkeypatch):
     mock = _client_mock()
     mock.get_task.return_value = TaskResponse(
-        task_id="t1", status="failed", data=None, error=["upstream blew up"]
+        task_id=TASK_ID, status="failed", data=None, error=["upstream blew up"]
     )
     monkeypatch.setattr("databar.cli.tasks.get_client", lambda: mock)
-    result = invoke(["task", "get", "t1", "--format", "json"])
+    result = invoke(["task", "get", TASK_ID, "--format", "json"])
     assert result.exit_code == 1
     assert (result.stderr or "") == ""
     parsed = json.loads(result.stdout)
@@ -597,20 +663,20 @@ def test_task_get_json_with_task_error(monkeypatch):
 def test_task_get_poll(monkeypatch):
     mock = _client_mock()
     monkeypatch.setattr("databar.cli.tasks.get_client", lambda: mock)
-    result = invoke(["task", "get", "t1", "--poll"])
+    result = invoke(["task", "get", TASK_ID, "--poll"])
     assert result.exit_code == 0
-    mock.poll_task.assert_called_once_with("t1")
+    mock.poll_task.assert_called_once_with(TASK_ID)
 
 
 def test_task_get_shows_progress_of_a_running_bulk_task(monkeypatch):
     mock = _client_mock()
     mock.get_task.return_value = TaskResponse(
-        task_id="t1",
+        task_id=TASK_ID,
         status="processing",
         progress={"total": 10, "completed": 4, "failed": 1, "processing": 5},
     )
     monkeypatch.setattr("databar.cli.tasks.get_client", lambda: mock)
-    result = invoke(["task", "get", "t1"])
+    result = invoke(["task", "get", TASK_ID])
     assert result.exit_code == 0
     assert "4 completed" in result.output
     assert "of 10" in result.output
@@ -619,25 +685,25 @@ def test_task_get_shows_progress_of_a_running_bulk_task(monkeypatch):
 def test_task_get_partial_asks_for_finished_rows(monkeypatch):
     mock = _client_mock()
     monkeypatch.setattr("databar.cli.tasks.get_client", lambda: mock)
-    result = invoke(["task", "get", "t1", "--partial"])
+    result = invoke(["task", "get", TASK_ID, "--partial"])
     assert result.exit_code == 0
-    mock.get_task.assert_called_once_with("t1", include_partial=True)
+    mock.get_task.assert_called_once_with(TASK_ID, include_partial=True)
 
 
 def test_task_cancel(monkeypatch):
     mock = _client_mock()
     monkeypatch.setattr("databar.cli.tasks.get_client", lambda: mock)
-    result = invoke(["task", "cancel", "t1"])
+    result = invoke(["task", "cancel", TASK_ID])
     assert result.exit_code == 0
     assert "cancelled" in result.output.lower()
-    mock.cancel_task.assert_called_once_with("t1")
+    mock.cancel_task.assert_called_once_with(TASK_ID)
 
 
 def test_task_cancel_reports_a_finished_task(monkeypatch):
     mock = _client_mock()
     mock.cancel_task.side_effect = DatabarError("Task has already finished", status_code=409)
     monkeypatch.setattr("databar.cli.tasks.get_client", lambda: mock)
-    result = invoke(["task", "cancel", "t1"])
+    result = invoke(["task", "cancel", TASK_ID])
     assert result.exit_code == 1
     assert "already finished" in result.stderr
 
