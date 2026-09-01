@@ -6,6 +6,31 @@ All notable changes to the Databar Python SDK are documented here.
 
 ## [Unreleased]
 
+### Added
+
+- **Flow editing (DEV-5144)** — the client can now create and change flows, not
+  just list and run them: `create_flow`, `replace_flow`, `update_flow`,
+  `delete_flow`, and `patch_flow_config` for targeted edits that change one node
+  without resending the whole graph.
+- **Flow version history** — `list_flow_versions`, `get_flow_version` and
+  `restore_flow_version`, plus `databar flow versions` / `databar flow restore`
+  in the CLI. A rollback is written as a new version, so it is itself revertible.
+- `FlowDetail` (a flow plus `config`, `ui` and the `internal_version` token
+  needed to edit it), `FlowVersion`, `FlowVersionDetail`, `FlowConfigOpsResult`,
+  `RestoreFlowVersionResult`.
+- `DatabarConflictError` for `409` — a stale `internal_version`, or a delete
+  blocked by a table column still running the flow. Previously untyped.
+
+### Changed
+
+- `get_flow()` returns `FlowDetail` instead of `Flow`. Without `config` and
+  `internal_version` a caller could not do a read-modify-write at all.
+- `406` now surfaces the server's own message. It is not always about credits —
+  being at the plan's flow limit uses the same status.
+- `create_flow()` and `restore_flow_version()` are not retried on a `5xx`: the
+  response can arrive after the server already did the work, and a retry would
+  do it twice.
+
 ### Changed
 
 - **CLI `--format json` envelope (breaking)** — success and failure both emit a

@@ -15,6 +15,8 @@ from pytest_httpx import HTTPXMock
 
 from databar.client import DatabarClient, _ROW_BATCH_SIZE, _MAX_RETRY_ATTEMPTS as _MAX_RETRIES
 from databar.exceptions import (
+    DatabarError,
+    DatabarConflictError,
     DatabarAuthError,
     DatabarGoneError,
     DatabarInsufficientCreditsError,
@@ -35,6 +37,8 @@ from databar.models import (
 )
 
 from .conftest import (
+    flow_version_payload,
+    flow_detail_payload,
     BASE_URL,
     enrichment_payload,
     enrichment_summary_payload,
@@ -319,3 +323,128 @@ def test_upsert_rows_auto_batches(client: DatabarClient, httpx_mock: HTTPXMock):
     result = client.upsert_rows("tbl-1", rows)
     assert isinstance(result, UpsertResponse)
     assert len(result.results) == total
+
+
+# ---------------------------------------------------------------------------
+# Flow editing
+# ---------------------------------------------------------------------------
+
+
+def test_get_flow_exposes_the_graph_and_edit_token(client: DatabarClient, httpx_mock: HTTPXMock):
+    """Without config + internal_version a caller cannot read-modify-write at all."""
+    httpx_mock.add_response(url=f"{BASE_URL}/flows/flow-uuid-1", json=flow_detail_payload())
+    f = client.get_flow("flow-uuid-1")
+    assert f.internal_version == "uuid-token-1"
+    assert f.config["nodes"][0]["id"] == "m1"
+
+
+def test_create_flow_posts_the_config(client: DatabarClient, httpx_mock: HTTPXMock):
+    httpx_mock.add_response(url=f"{BASE_URL}/flows", json=flow_detail_payload(), method="POST")
+    f = client.create_flow(name="Made by SDK", config={"inputs": [], "nodes": []})
+    assert f.id == "flow-uuid-1"
+    body = json.loads(httpx_mock.get_requests()[-1].content)
+    assert body == {"name": "Made by SDK", "config": {"inputs": [], "nodes": []}, "description": ""}
+
+
+def test_create_flow_is_not_retried_on_a_server_error(client: DatabarClient, httpx_mock: HTTPXMock):
+    """A 5xx can land after the flow was created; retrying would make a second one."""
+    httpx_mock.add_response(url=f"{BASE_URL}/flows", method="POST", status_code=500, json={"detail": "boom"})
+    with pytest.raises(DatabarError):
+        client.create_flow(name="x", config={"nodes": []})
+    assert len([r for r in httpx_mock.get_requests() if r.method == "POST"]) == 1
+
+
+def test_replace_flow_sends_the_concurrency_token(client: DatabarClient, httpx_mock: HTTPXMock):
+    httpx_mock.add_response(url=f"{BASE_URL}/flows/flow-uuid-1", json=flow_detail_payload(), method="PUT")
+    client.replace_flow("flow-uuid-1", name="N", config={"nodes": []}, internal_version="uuid-token-1")
+    body = json.loads(httpx_mock.get_requests()[-1].content)
+    assert body["internal_version"] == "uuid-token-1"
+
+
+def test_update_flow_sends_only_what_was_passed(client: DatabarClient, httpx_mock: HTTPXMock):
+    httpx_mock.add_response(url=f"{BASE_URL}/flows/flow-uuid-1", json=flow_detail_payload(), method="PATCH")
+    client.update_flow("flow-uuid-1", name="Renamed")
+    body = json.loads(httpx_mock.get_requests()[-1].content)
+    assert body == {"name": "Renamed"}
+
+
+def test_patch_flow_config_sends_the_op_batch(client: DatabarClient, httpx_mock: HTTPXMock):
+    httpx_mock.add_response(
+        url=f"{BASE_URL}/flows/flow-uuid-1/config",
+        method="PATCH",
+        json={"valid": True, "errors": [], "config": {"nodes": []}, "flow": flow_detail_payload()},
+    )
+    result = client.patch_flow_config("flow-uuid-1", [{"op": "remove_node", "node_id": "m1"}])
+    assert result.valid is True
+    assert result.flow is not None and result.flow.id == "flow-uuid-1"
+    body = json.loads(httpx_mock.get_requests()[-1].content)
+    assert body == {"ops": [{"op": "remove_node", "node_id": "m1"}], "validate_only": False}
+
+
+def test_patch_flow_config_validate_only_returns_no_flow(client: DatabarClient, httpx_mock: HTTPXMock):
+    httpx_mock.add_response(
+        url=f"{BASE_URL}/flows/flow-uuid-1/config",
+        method="PATCH",
+        json={"valid": False, "errors": ["Node m1: unknown output"], "config": {"nodes": []}, "flow": None},
+    )
+    result = client.patch_flow_config("flow-uuid-1", [{"op": "remove_node", "node_id": "m1"}], validate_only=True)
+    assert result.valid is False
+    assert result.flow is None
+    assert result.errors == ["Node m1: unknown output"]
+
+
+def test_delete_flow_blocked_by_a_column_raises_conflict(client: DatabarClient, httpx_mock: HTTPXMock):
+    httpx_mock.add_response(
+        url=f"{BASE_URL}/flows/flow-uuid-1",
+        method="DELETE",
+        status_code=409,
+        json={"detail": "Flow is attached to table columns."},
+    )
+    with pytest.raises(DatabarConflictError) as exc:
+        client.delete_flow("flow-uuid-1")
+    assert "attached to table columns" in exc.value.message
+
+
+def test_list_flow_versions_newest_first(client: DatabarClient, httpx_mock: HTTPXMock):
+    httpx_mock.add_response(
+        url=f"{BASE_URL}/flows/flow-uuid-1/versions?page=1&limit=50",
+        json=[flow_version_payload(2, changed_fields=["ui"]), flow_version_payload(1)],
+    )
+    versions = client.list_flow_versions("flow-uuid-1")
+    assert [v.number for v in versions] == [2, 1]
+    # A canvas-only move must be distinguishable from a graph edit.
+    assert versions[0].changed_fields == ["ui"]
+    assert versions[0].source == "api"
+
+
+def test_get_flow_version_carries_the_stored_graph(client: DatabarClient, httpx_mock: HTTPXMock):
+    httpx_mock.add_response(
+        url=f"{BASE_URL}/flows/flow-uuid-1/versions/1",
+        json={**flow_version_payload(1), "config": {"nodes": [{"id": "old"}]}, "ui": {}},
+    )
+    version = client.get_flow_version("flow-uuid-1", 1)
+    assert version.config["nodes"][0]["id"] == "old"
+
+
+def test_restore_returns_the_version_the_rollback_created(client: DatabarClient, httpx_mock: HTTPXMock):
+    """A rollback adds a version rather than rewriting history, so the number differs."""
+    httpx_mock.add_response(
+        url=f"{BASE_URL}/flows/flow-uuid-1/versions/1/restore",
+        method="POST",
+        json={"flow": flow_detail_payload(), "version": flow_version_payload(3, restored_from=1)},
+    )
+    result = client.restore_flow_version("flow-uuid-1", 1)
+    assert result.version.number == 3
+    assert result.version.restored_from == 1
+    assert result.flow.internal_version == "uuid-token-1"
+
+
+def test_stale_token_on_restore_raises_conflict(client: DatabarClient, httpx_mock: HTTPXMock):
+    httpx_mock.add_response(
+        url=f"{BASE_URL}/flows/flow-uuid-1/versions/1/restore",
+        method="POST",
+        status_code=409,
+        json={"detail": "This flow was modified by someone else."},
+    )
+    with pytest.raises(DatabarConflictError):
+        client.restore_flow_version("flow-uuid-1", 1, internal_version="stale")

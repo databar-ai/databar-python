@@ -27,6 +27,7 @@ from .client import DatabarClient
 from .exceptions import (
     DatabarAuthError,
     DatabarError,
+    DatabarConflictError,
     DatabarGoneError,
     DatabarInsufficientCreditsError,
     DatabarNotFoundError,
@@ -62,8 +63,13 @@ from .models import (
     WaterfallEnrichment,
     # Flows
     Flow,
+    FlowConfigOpsResult,
+    FlowDetail,
     FlowInput,
     FlowOutput,
+    FlowVersion,
+    FlowVersionDetail,
+    RestoreFlowVersionResult,
     # Tables
     Table,
     Column,
@@ -109,6 +115,7 @@ __all__ = [
     "DatabarAuthError",
     "DatabarNotFoundError",
     "DatabarInsufficientCreditsError",
+    "DatabarConflictError",
     "DatabarGoneError",
     "DatabarValidationError",
     "DatabarRateLimitError",
@@ -140,8 +147,13 @@ __all__ = [
     "WaterfallEnrichment",
     # flows
     "Flow",
+    "FlowConfigOpsResult",
+    "FlowDetail",
     "FlowInput",
     "FlowOutput",
+    "FlowVersion",
+    "FlowVersionDetail",
+    "RestoreFlowVersionResult",
     # tables
     "Table",
     "Column",

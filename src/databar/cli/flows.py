@@ -4,6 +4,12 @@ CLI commands for flows.
   databar flow list [--query] [--format]
   databar flow get  <flow-id> [--format]
   databar flow run  <flow-id> --inputs '{"email":"a@b.com"}' [--format] [--raw]
+  databar flow versions <flow-id> [--format]
+  databar flow restore  <flow-id> <version> [--yes]
+
+Editing a graph is deliberately not a CLI command — that is an editor or SDK
+job. Reading the history and rolling back are, because that is what you reach
+for from a terminal when a flow started returning nothing.
 """
 
 from __future__ import annotations
@@ -122,3 +128,66 @@ def run_flow(
         return
 
     output(result, fmt)
+
+
+@app.command("versions")
+def list_versions(
+    flow_id: str = typer.Argument(..., help="Flow id."),
+    limit: int = typer.Option(50, "--limit", "-n", help="How many versions to show (newest first)."),
+    fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "--output", "-f"),
+) -> None:
+    """Show the flow's edit history: what changed, who changed it and from where."""
+    client = get_client()
+    try:
+        versions = client.list_flow_versions(flow_id, limit=limit)
+    except DatabarError as exc:
+        error(exc)
+    finally:
+        client.close()
+
+    if fmt == OutputFormat.JSON:
+        output([v.model_dump() for v in versions], fmt)
+        return
+
+    rows = [
+        {
+            "version": v.number,
+            "changed": ", ".join(v.changed_fields) or "-",
+            "source": v.source,
+            "by": v.created_by or "-",
+            "at": v.created_at,
+            "restored_from": v.restored_from if v.restored_from is not None else "-",
+        }
+        for v in versions
+    ]
+    output(rows, fmt, table_columns=["version", "changed", "source", "by", "at", "restored_from"])
+
+
+@app.command("restore")
+def restore_version(
+    flow_id: str = typer.Argument(..., help="Flow id."),
+    version: int = typer.Argument(..., help="Version number from `databar flow versions`."),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip the confirmation prompt."),
+    fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "--output", "-f"),
+) -> None:
+    """Roll the flow back to an earlier version.
+
+    Nothing is overwritten: the old config is stored as a new version, so the
+    rollback is itself revertible.
+    """
+    if not yes and not typer.confirm(f"Restore v{version} of {flow_id}? This adds a new version."):
+        raise typer.Abort()
+
+    client = get_client()
+    try:
+        result = client.restore_flow_version(flow_id, version)
+    except DatabarError as exc:
+        error(exc)
+    finally:
+        client.close()
+
+    if fmt == OutputFormat.JSON:
+        output(result.model_dump(), fmt)
+        return
+
+    info(f"Restored v{version} of {result.flow.name} — saved as v{result.version.number}.")

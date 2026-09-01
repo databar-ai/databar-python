@@ -45,6 +45,15 @@ class DatabarInsufficientCreditsError(DatabarError):
     """Raised on 406 — account does not have enough credits."""
 
 
+class DatabarConflictError(DatabarError):
+    """Raised on 409 — the request lost a race, or is blocked by something still in use.
+
+    Two cases carry this status: an ``internal_version`` token that is stale
+    because the flow was saved by someone else since you read it, and a delete
+    refused while table columns still run the flow.
+    """
+
+
 class DatabarGoneError(DatabarError):
     """Raised on 410 — task results have expired (data stored for 24 hours)."""
 

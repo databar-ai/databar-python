@@ -388,6 +388,81 @@ class Flow(BaseModel):
         return self.id
 
 
+class FlowDetail(Flow):
+    """A flow plus what you need to edit it.
+
+    Adds: config, ui, internal_version.
+
+    ``config`` is the graph itself; ``ui`` is editor-only metadata the runtime
+    ignores. ``internal_version`` is the concurrency token — send it back on
+    ``replace_flow()``, and on ``update_flow()`` whenever you change the config,
+    so a concurrent edit is refused instead of silently overwritten.
+    """
+
+    config: Dict[str, Any] = Field(default_factory=dict)
+    ui: Dict[str, Any] = Field(default_factory=dict)
+    internal_version: str = ""
+
+
+class FlowVersion(BaseModel):
+    """One saved version of a flow.
+
+    Fields: number, name, description, changed_fields, source, created_at,
+    created_by, restored_from.
+
+    ``changed_fields`` tells a canvas-only move (``["ui"]``) apart from a graph
+    edit (``["config"]``), which is what makes a long history readable when you
+    are hunting the change that broke something. ``source`` is where the edit
+    came from: ui, api, mcp, admin or system.
+    """
+
+    number: int = Field(description="1-based, monotonic within one flow. Newest first in list_flow_versions().")
+    name: str = ""
+    description: str = ""
+    changed_fields: List[str] = Field(default_factory=list)
+    source: str = ""
+    created_at: str = ""
+    created_by: Optional[str] = None
+    restored_from: Optional[int] = Field(
+        default=None, description="Version this one was restored from, if it came from a rollback."
+    )
+
+
+class FlowVersionDetail(FlowVersion):
+    """A version plus the graph it held. Adds: config, ui."""
+
+    config: Dict[str, Any] = Field(default_factory=dict)
+    ui: Dict[str, Any] = Field(default_factory=dict)
+
+
+class FlowConfigOpsResult(BaseModel):
+    """Result of patch_flow_config().
+
+    Fields: valid, errors, config, flow.
+
+    ``flow`` is None when ``validate_only`` was set — nothing was written and
+    ``config`` is what the batch *would* have produced.
+    """
+
+    valid: bool
+    errors: List[str] = Field(default_factory=list)
+    config: Dict[str, Any] = Field(default_factory=dict)
+    flow: Optional[FlowDetail] = None
+
+
+class RestoreFlowVersionResult(BaseModel):
+    """Result of restore_flow_version().
+
+    Fields: flow, version.
+
+    A rollback is written as a *new* version rather than rewriting history, so
+    ``version`` is the one the restore created — not the one you asked for.
+    """
+
+    flow: FlowDetail
+    version: FlowVersion
+
+
 # ===========================================================================
 # Tables
 # ===========================================================================

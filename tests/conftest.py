@@ -152,6 +152,31 @@ def flow_payload(flow_id: str = "flow-uuid-1", **overrides) -> dict:
     }
 
 
+def flow_detail_payload(flow_id: str = "flow-uuid-1", **overrides) -> dict:
+    """What the editing endpoints return: a flow plus its graph and edit token."""
+    return {
+        **flow_payload(flow_id),
+        "config": {"inputs": [], "nodes": [{"id": "m1", "type": "math_function", "data": {"expression": "2 + 2"}}]},
+        "ui": {},
+        "internal_version": "uuid-token-1",
+        **overrides,
+    }
+
+
+def flow_version_payload(number: int = 1, **overrides) -> dict:
+    return {
+        "number": number,
+        "name": "Find buyer",
+        "description": "",
+        "changed_fields": ["config"],
+        "source": "api",
+        "created_at": "2024-01-01T00:00:00Z",
+        "created_by": "dev@databar.ai",
+        "restored_from": None,
+        **overrides,
+    }
+
+
 def exporter_payload(id: int = 1, **overrides) -> dict:
     return {
         "id": id,

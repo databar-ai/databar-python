@@ -42,6 +42,7 @@ from .exceptions import (
     DatabarAuthError,
     DatabarError,
     DatabarGoneError,
+    DatabarConflictError,
     DatabarInsufficientCreditsError,
     DatabarNotFoundError,
     DatabarRateLimitError,
@@ -73,6 +74,11 @@ from .models import (
     ExporterParam,
     ExporterResponseField,
     Flow,
+    FlowConfigOpsResult,
+    FlowDetail,
+    FlowVersion,
+    FlowVersionDetail,
+    RestoreFlowVersionResult,
     Folder,
     InsertOptions,
     InsertRow,
@@ -184,7 +190,15 @@ class DatabarClient:
             )
         if status == 406:
             raise DatabarInsufficientCreditsError(
-                "Insufficient credits. Top up your account at databar.ai.",
+                (body.get("detail") if isinstance(body, dict) else None)
+                or "Insufficient credits, or your plan does not allow this. See databar.ai.",
+                status_code=status,
+                response_body=body,
+            )
+        if status == 409:
+            raise DatabarConflictError(
+                (body.get("detail") if isinstance(body, dict) else None)
+                or "Conflict — the resource changed since you read it, or is still in use.",
                 status_code=status,
                 response_body=body,
             )
@@ -229,7 +243,14 @@ class DatabarClient:
         *,
         params: Optional[Dict] = None,
         json: Any = None,
+        retry_on_server_error: bool = True,
     ) -> Any:
+        """Send one request, retrying transport errors, 429s and 5xx.
+
+        ``retry_on_server_error=False`` for calls that are not idempotent: a 5xx
+        can arrive after the server already did the work, and retrying would do
+        it twice — a second flow, a second rollback.
+        """
         last_exc: Exception | None = None
         for attempt in range(_MAX_RETRY_ATTEMPTS):
             try:
@@ -241,6 +262,8 @@ class DatabarClient:
             except (DatabarRateLimitError, DatabarError) as exc:
                 if isinstance(exc, DatabarError) and exc.status_code is not None:
                     if 400 <= exc.status_code < 500 and exc.status_code != 429:
+                        raise
+                    if exc.status_code >= 500 and not retry_on_server_error:
                         raise
                 last_exc = exc
                 if attempt < _MAX_RETRY_ATTEMPTS - 1:
@@ -573,10 +596,157 @@ class DatabarClient:
         data = self._request("GET", "/flows")
         return [Flow.model_validate(f) for f in data]
 
-    def get_flow(self, flow_id: str) -> Flow:
-        """Get details for a specific flow, including its declared inputs."""
+    def get_flow(self, flow_id: str) -> FlowDetail:
+        """Get one flow: its declared inputs, its graph, and the token to edit it.
+
+        The ``internal_version`` on the result is what ``replace_flow()`` and a
+        config-changing ``update_flow()`` must send back, so a read here is the
+        first half of every read-modify-write.
+        """
         data = self._request("GET", f"/flows/{flow_id}")
-        return Flow.model_validate(data)
+        return FlowDetail.model_validate(data)
+
+    def create_flow(
+        self,
+        name: str,
+        config: Dict[str, Any],
+        description: str = "",
+        ui: Optional[Dict[str, Any]] = None,
+    ) -> FlowDetail:
+        """Create a flow from a config.
+
+        The config is validated the way the editor validates it, so an invalid
+        graph is rejected here rather than failing later on every run.
+
+        Not retried on a server error: a 5xx can arrive after the flow was
+        already created, and a retry would leave you with two.
+        """
+        payload: Dict[str, Any] = {"name": name, "config": config, "description": description}
+        if ui is not None:
+            payload["ui"] = ui
+        data = self._request("POST", "/flows", json=payload, retry_on_server_error=False)
+        return FlowDetail.model_validate(data)
+
+    def replace_flow(
+        self,
+        flow_id: str,
+        name: str,
+        config: Dict[str, Any],
+        internal_version: str,
+        description: str = "",
+        ui: Optional[Dict[str, Any]] = None,
+    ) -> FlowDetail:
+        """Replace the whole flow.
+
+        ``internal_version`` must be the value the last ``get_flow()`` returned;
+        a stale one raises ``DatabarConflictError`` instead of overwriting
+        someone else's edit. To change one node, use ``patch_flow_config()``.
+        """
+        payload: Dict[str, Any] = {
+            "name": name,
+            "config": config,
+            "description": description,
+            "internal_version": internal_version,
+        }
+        if ui is not None:
+            payload["ui"] = ui
+        data = self._request("PUT", f"/flows/{flow_id}", json=payload)
+        return FlowDetail.model_validate(data)
+
+    def update_flow(
+        self,
+        flow_id: str,
+        *,
+        name: Optional[str] = None,
+        description: Optional[str] = None,
+        config: Optional[Dict[str, Any]] = None,
+        ui: Optional[Dict[str, Any]] = None,
+        internal_version: Optional[str] = None,
+    ) -> FlowDetail:
+        """Update only the fields you pass.
+
+        A rename needs neither a config nor a token. ``internal_version`` is
+        required whenever ``config`` is given.
+        """
+        payload = {
+            k: v
+            for k, v in (
+                ("name", name),
+                ("description", description),
+                ("config", config),
+                ("ui", ui),
+                ("internal_version", internal_version),
+            )
+            if v is not None
+        }
+        data = self._request("PATCH", f"/flows/{flow_id}", json=payload)
+        return FlowDetail.model_validate(data)
+
+    def patch_flow_config(
+        self,
+        flow_id: str,
+        ops: List[Dict[str, Any]],
+        *,
+        internal_version: Optional[str] = None,
+        validate_only: bool = False,
+    ) -> FlowConfigOpsResult:
+        """Change part of a flow without resending the whole graph.
+
+        Replacing the entire config to fix one word puts every other node in the
+        request too, so a small fix carries the risk of a large one.
+
+        The batch is atomic: if any op fails, nothing is written. Omit
+        ``internal_version`` and the ops are applied to whatever is current, so
+        a fix to one node does not lose a race with a change to another.
+
+        Op names: set_input, remove_input, add_node, replace_node, update_node,
+        remove_node, set_node_input, remove_node_input, set_node_output,
+        remove_node_output, set_output, set_output_field, remove_output_field.
+        """
+        payload: Dict[str, Any] = {"ops": ops, "validate_only": validate_only}
+        if internal_version is not None:
+            payload["internal_version"] = internal_version
+        data = self._request("PATCH", f"/flows/{flow_id}/config", json=payload)
+        return FlowConfigOpsResult.model_validate(data)
+
+    def delete_flow(self, flow_id: str) -> None:
+        """Delete a flow.
+
+        Raises ``DatabarConflictError`` while table columns still run it — the
+        column would survive with nothing behind it and fail on every row.
+        """
+        self._request("DELETE", f"/flows/{flow_id}")
+
+    def list_flow_versions(self, flow_id: str, page: int = 1, limit: int = 50) -> List[FlowVersion]:
+        """Every save of the flow, newest first: what changed, who and from where.
+
+        The first entry is the version the flow is currently on.
+        """
+        data = self._request("GET", f"/flows/{flow_id}/versions", params={"page": page, "limit": limit})
+        return [FlowVersion.model_validate(v) for v in data]
+
+    def get_flow_version(self, flow_id: str, number: int) -> FlowVersionDetail:
+        """One stored version, including the graph it held."""
+        data = self._request("GET", f"/flows/{flow_id}/versions/{number}")
+        return FlowVersionDetail.model_validate(data)
+
+    def restore_flow_version(
+        self, flow_id: str, number: int, internal_version: Optional[str] = None
+    ) -> RestoreFlowVersionResult:
+        """Roll the flow back to an earlier version.
+
+        Nothing is overwritten: the old config is written as a *new* version, so
+        the rollback is itself revertible. A version that no longer validates —
+        its enrichment was deleted — is refused rather than restored.
+
+        Not retried on a server error: the rollback may already have been
+        recorded, and a retry would add a second identical version.
+        """
+        payload = {"internal_version": internal_version} if internal_version else {}
+        data = self._request(
+            "POST", f"/flows/{flow_id}/versions/{number}/restore", json=payload, retry_on_server_error=False
+        )
+        return RestoreFlowVersionResult.model_validate(data)
 
     def run_flow(self, flow_id: str, inputs: Dict[str, str]) -> RunResponse:
         """
