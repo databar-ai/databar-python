@@ -8,6 +8,18 @@ All notable changes to the Databar Python SDK are documented here.
 
 ---
 
+## [2.5.1] — 2026-09-03
+
+### Fixed
+
+- **CLI crash on Typer 0.26+** — Typer now vendors Click and no longer
+  installs the `click` package. `databar` imported `click` at startup, so a
+  fresh `pip install databar` on current Typer raised
+  `ModuleNotFoundError: No module named 'click'`. Read the live context from
+  Typer's vendored Click (and fall back to the `click` package on older Typer).
+
+---
+
 ## [2.5.0] — 2026-09-03
 
 Ships everything that never made it to PyPI after 2.2.0 (local 2.3/2.4

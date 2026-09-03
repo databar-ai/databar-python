@@ -19,7 +19,6 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, NoReturn, Optional, Union
 
-import click
 import typer
 from rich import print_json as rich_print_json
 from rich.console import Console
@@ -79,9 +78,26 @@ _HINTS = {
 }
 
 
+def _cli_context():
+    """Active Typer context, or None.
+
+    Typer 0.26+ vendors Click (no ``click`` extra). Older typer uses the
+    standalone package. Private ``typer._click`` is the only way to read
+    the live context after they vendored; fall back to ``click`` for <0.26.
+    """
+    try:
+        from typer._click.globals import get_current_context
+    except ImportError:
+        try:
+            from click import get_current_context
+        except ImportError:
+            return None
+    return get_current_context(silent=True)
+
+
 def _current_format() -> OutputFormat:
     """Read --format from the active Click/Typer context, defaulting to table."""
-    ctx = click.get_current_context(silent=True)
+    ctx = _cli_context()
     if ctx is None:
         return OutputFormat.TABLE
     fmt = ctx.params.get("fmt")

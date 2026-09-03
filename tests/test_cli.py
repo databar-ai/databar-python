@@ -716,4 +716,11 @@ def test_task_cancel_reports_a_finished_task(monkeypatch):
 def test_version_flag():
     result = runner.invoke(app, ["--version"])
     assert result.exit_code == 0
-    assert "2.5.0" in result.output
+    assert "2.5.1" in result.output
+
+
+def test_output_module_does_not_import_click():
+    # Typer 0.26+ vendors Click; a top-level `import click` crashes a fresh install.
+    import databar.cli._output as out
+
+    assert "click" not in out.__dict__
