@@ -716,4 +716,4 @@ def test_task_cancel_reports_a_finished_task(monkeypatch):
 def test_version_flag():
     result = runner.invoke(app, ["--version"])
     assert result.exit_code == 0
-    assert "2.4.0" in result.output
+    assert "2.5.0" in result.output

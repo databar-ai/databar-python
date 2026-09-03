@@ -6,6 +6,13 @@ All notable changes to the Databar Python SDK are documented here.
 
 ## [Unreleased]
 
+---
+
+## [2.5.0] — 2026-09-03
+
+Ships everything that never made it to PyPI after 2.2.0 (local 2.3/2.4
+were never published).
+
 ### Added
 
 - **Flow editing (DEV-5144)** — the client can now create and change flows, not
@@ -20,29 +27,6 @@ All notable changes to the Databar Python SDK are documented here.
   `RestoreFlowVersionResult`.
 - `DatabarConflictError` for `409` — a stale `internal_version`, or a delete
   blocked by a table column still running the flow. Previously untyped.
-
-### Changed
-
-- `get_flow()` returns `FlowDetail` instead of `Flow`. Without `config` and
-  `internal_version` a caller could not do a read-modify-write at all.
-- `406` now surfaces the server's own message. It is not always about credits —
-  being at the plan's flow limit uses the same status.
-- `create_flow()` and `restore_flow_version()` are not retried on a `5xx`: the
-  response can arrive after the server already did the work, and a retry would
-  do it twice.
-
-### Changed
-
-- **CLI `--format json` envelope (breaking)** — success and failure both emit a
-  single JSON object on stdout:
-  `{"ok": true, "data": ...}` / `{"ok": false, "error": {"code", "message", "hint"?}}`.
-  Agents must read `.data` (e.g. `jq '.data[].name'`). Errors no longer leave
-  stdout empty with prose on stderr.
-- **CLI exit codes** — usage → 2, auth → 3, not found → 4, validation → 5;
-  other failures stay 1.
-
-### Added
-
 - **CLI UUID validation (DEV-5135)** — `table` and `task` identifier args are
   checked client-side before any request. Bad values (e.g. `foo%2Fbar`) fail with
   `code: validation` / exit 5 and a UUID hint, instead of a bare API 404.
@@ -65,6 +49,23 @@ All notable changes to the Databar Python SDK are documented here.
 - **`DatabarTaskCancelledError`** — raised by `poll_task` when a task was
   cancelled. Carries `.partial_data`, which is *not* aligned to the inputs (the
   rows that never ran leave no gap), so it can't be joined back by position.
+
+### Changed
+
+- `get_flow()` returns `FlowDetail` instead of `Flow`. Without `config` and
+  `internal_version` a caller could not do a read-modify-write at all.
+- `406` now surfaces the server's own message. It is not always about credits —
+  being at the plan's flow limit uses the same status.
+- `create_flow()` and `restore_flow_version()` are not retried on a `5xx`: the
+  response can arrive after the server already did the work, and a retry would
+  do it twice.
+- **CLI `--format json` envelope (breaking)** — success and failure both emit a
+  single JSON object on stdout:
+  `{"ok": true, "data": ...}` / `{"ok": false, "error": {"code", "message", "hint"?}}`.
+  Agents must read `.data` (e.g. `jq '.data[].name'`). Errors no longer leave
+  stdout empty with prose on stderr.
+- **CLI exit codes** — usage → 2, auth → 3, not found → 4, validation → 5;
+  other failures stay 1.
 
 ### Fixed
 
