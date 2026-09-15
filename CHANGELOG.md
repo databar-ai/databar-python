@@ -6,6 +6,12 @@ All notable changes to the Databar Python SDK are documented here.
 
 ## [Unreleased]
 
+### Added
+
+- **`run_flow_bulk` / `run_flow_bulk_sync`** — run a flow over a list of
+  input sets in one call. Polled `data` is aligned to the inputs, with
+  `None` for misses (same contract as enrichment/waterfall bulk).
+
 ---
 
 ## [2.5.1] — 2026-09-03

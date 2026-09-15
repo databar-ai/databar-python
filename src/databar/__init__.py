@@ -63,8 +63,11 @@ from .models import (
     WaterfallEnrichment,
     # Flows
     Flow,
+    FlowConfigError,
     FlowConfigOpsResult,
+    FlowCostEstimate,
     FlowDetail,
+    FlowValidateResult,
     FlowInput,
     FlowOutput,
     FlowVersion,
@@ -147,8 +150,11 @@ __all__ = [
     "WaterfallEnrichment",
     # flows
     "Flow",
+    "FlowConfigError",
     "FlowConfigOpsResult",
+    "FlowCostEstimate",
     "FlowDetail",
+    "FlowValidateResult",
     "FlowInput",
     "FlowOutput",
     "FlowVersion",

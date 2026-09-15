@@ -242,6 +242,25 @@ def test_run_flow_sync(client: DatabarClient, httpx_mock: HTTPXMock):
     assert result == {"full_name": "Alice"}
 
 
+def test_run_flow_bulk_returns_task(client: DatabarClient, httpx_mock: HTTPXMock):
+    httpx_mock.add_response(url=f"{BASE_URL}/flows/flow-uuid-1/bulk-run", json=task_payload("processing"))
+    task = client.run_flow_bulk("flow-uuid-1", [{"email": "a@x.com"}, {"email": "b@x.com"}])
+    assert task.task_id == "task-123"
+    req = httpx_mock.get_requests()[-1]
+    body = json.loads(req.content)
+    assert body == {"inputs": [{"email": "a@x.com"}, {"email": "b@x.com"}]}
+
+
+def test_run_flow_bulk_sync(client: DatabarClient, httpx_mock: HTTPXMock):
+    httpx_mock.add_response(url=f"{BASE_URL}/flows/flow-uuid-1/bulk-run", json=task_payload("processing"))
+    httpx_mock.add_response(
+        url=f"{BASE_URL}/tasks/task-123",
+        json=task_payload("completed", data=[{"full_name": "Alice"}, None]),
+    )
+    result = client.run_flow_bulk_sync("flow-uuid-1", [{"email": "a@x.com"}, {"email": "b@x.com"}])
+    assert result == [{"full_name": "Alice"}, None]
+
+
 # ===========================================================================
 # Tables
 # ===========================================================================
@@ -379,6 +398,33 @@ def test_patch_flow_config_sends_the_op_batch(client: DatabarClient, httpx_mock:
     assert result.flow is not None and result.flow.id == "flow-uuid-1"
     body = json.loads(httpx_mock.get_requests()[-1].content)
     assert body == {"ops": [{"op": "remove_node", "node_id": "m1"}], "validate_only": False}
+
+
+def test_validate_flow_config_posts_the_config(client: DatabarClient, httpx_mock: HTTPXMock):
+    httpx_mock.add_response(
+        url=f"{BASE_URL}/flows/validate-config",
+        method="POST",
+        json={"valid": False, "errors": [{"node_id": "cond1", "message": "bad formula"}]},
+    )
+    result = client.validate_flow_config({"nodes": []})
+    assert result.valid is False
+    assert result.errors[0].node_id == "cond1"
+    body = json.loads(httpx_mock.get_requests()[-1].content)
+    assert body == {"config": {"nodes": []}}
+
+
+def test_estimate_flow_cost_posts_the_config(client: DatabarClient, httpx_mock: HTTPXMock):
+    httpx_mock.add_response(
+        url=f"{BASE_URL}/flows/cost-estimate",
+        method="POST",
+        json={"min": "0", "max": "2", "currency": "credits"},
+    )
+    result = client.estimate_flow_cost({"nodes": []})
+    assert result.min == "0"
+    assert result.max == "2"
+    assert result.currency == "credits"
+    body = json.loads(httpx_mock.get_requests()[-1].content)
+    assert body == {"config": {"nodes": []}}
 
 
 def test_patch_flow_config_validate_only_returns_no_flow(client: DatabarClient, httpx_mock: HTTPXMock):

@@ -15,7 +15,7 @@ Endpoint groups:
   - Enrichments: list_enrichments, get_enrichment, run_enrichment[_bulk][_sync],
                  get_param_choices
   - Waterfalls:  list_waterfalls, get_waterfall, run_waterfall[_bulk][_sync]
-  - Flows:       list_flows, get_flow, run_flow[_sync]
+  - Flows:       list_flows, get_flow, run_flow[_bulk][_sync]
   - Tables:      create_table, list_tables, delete_table, rename_table,
                  get_columns, create_column, rename_column, delete_column,
                  get_table_enrichments, add_enrichment, run_table_enrichment,
@@ -75,7 +75,9 @@ from .models import (
     ExporterResponseField,
     Flow,
     FlowConfigOpsResult,
+    FlowCostEstimate,
     FlowDetail,
+    FlowValidateResult,
     FlowVersion,
     FlowVersionDetail,
     RestoreFlowVersionResult,
@@ -709,6 +711,25 @@ class DatabarClient:
         data = self._request("PATCH", f"/flows/{flow_id}/config", json=payload)
         return FlowConfigOpsResult.model_validate(data)
 
+    def validate_flow_config(self, config: Dict[str, Any]) -> FlowValidateResult:
+        """Check a (possibly unsaved) config without persisting anything.
+
+        Same checks ``create_flow()`` / ``update_flow()`` run on save. An
+        invalid config does not raise: ``valid`` is False and ``errors``
+        names the node when one is at fault.
+        """
+        data = self._request("POST", "/flows/validate-config", json={"config": config})
+        return FlowValidateResult.model_validate(data)
+
+    def estimate_flow_cost(self, config: Dict[str, Any]) -> FlowCostEstimate:
+        """Credit-cost range of one run of a (possibly unsaved) config.
+
+        ``min``/``max`` because waterfalls stop at the first success and
+        conditions skip branches. Call this before ``run_flow()``.
+        """
+        data = self._request("POST", "/flows/cost-estimate", json={"config": config})
+        return FlowCostEstimate.model_validate(data)
+
     def delete_flow(self, flow_id: str) -> None:
         """Delete a flow.
 
@@ -763,6 +784,24 @@ class DatabarClient:
     def run_flow_sync(self, flow_id: str, inputs: Dict[str, str]) -> Any:
         """Submit and poll a flow, returning final data when complete."""
         task = self.run_flow(flow_id, inputs)
+        return self.poll_task(task.task_id)
+
+    def run_flow_bulk(self, flow_id: str, inputs: List[Dict[str, str]]) -> RunResponse:
+        """Submit a flow over many input sets. Returns one task.
+
+        The polled result is aligned to the inputs: one element per input, in the
+        same order as ``inputs``, with ``None`` for inputs that returned no data.
+        """
+        data = self._request("POST", f"/flows/{flow_id}/bulk-run", json={"inputs": inputs})
+        return RunResponse.model_validate(data)
+
+    def run_flow_bulk_sync(self, flow_id: str, inputs: List[Dict[str, str]]) -> Any:
+        """Submit and poll a bulk flow run, returning final data when complete.
+
+        Returns a list aligned to ``inputs``: one element per input in input
+        order, ``None`` for misses (``len(result) == len(inputs)``).
+        """
+        task = self.run_flow_bulk(flow_id, inputs)
         return self.poll_task(task.task_id)
 
     # -----------------------------------------------------------------------

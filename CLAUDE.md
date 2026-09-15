@@ -196,6 +196,7 @@ flow = client.get_flow("flow-uuid")
 # flow.id (also .identifier) → flow UUID
 # flow.inputs[i].id → input key to use in the run inputs dict
 result = client.run_flow_sync("flow-uuid", {"email": "alice@example.com"})
+results = client.run_flow_bulk_sync("flow-uuid", [{"email": "a@x.com"}, {"email": "b@x.com"}])
 
 # Tables
 tables = client.list_tables()

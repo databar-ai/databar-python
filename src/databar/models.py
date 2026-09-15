@@ -450,6 +450,36 @@ class FlowConfigOpsResult(BaseModel):
     flow: Optional[FlowDetail] = None
 
 
+class FlowConfigError(BaseModel):
+    """One reason a flow config would be rejected on save."""
+
+    node_id: Optional[str] = None
+    message: str
+
+
+class FlowValidateResult(BaseModel):
+    """Result of validate_flow_config().
+
+    An invalid config is a valid answer — ``valid`` is False and ``errors``
+    names the node (when known) rather than raising.
+    """
+
+    valid: bool
+    errors: List[FlowConfigError] = Field(default_factory=list)
+
+
+class FlowCostEstimate(BaseModel):
+    """Result of estimate_flow_cost().
+
+    ``min``/``max`` because waterfalls stop at the first success and
+    conditions skip branches. Both are credit amounts as strings.
+    """
+
+    min: str
+    max: str
+    currency: str = "credits"
+
+
 class RestoreFlowVersionResult(BaseModel):
     """Result of restore_flow_version().
 
