@@ -129,6 +129,7 @@ class DatabarClient:
         timeout: float = 30.0,
         max_poll_attempts: int = 150,
         poll_interval_s: float = 2.0,
+        client_source: str = "sdk",
     ) -> None:
         resolved_key = api_key or os.environ.get("DATABAR_API_KEY")
         if not resolved_key:
@@ -148,9 +149,20 @@ class DatabarClient:
         self._timeout = timeout
         self._max_poll_attempts = max_poll_attempts
         self._poll_interval_s = poll_interval_s
+        from databar import __version__
+
+        source = client_source if client_source in {"sdk", "cli"} else "sdk"
+        user_agent = f"databar-python/{__version__}"
+        if source == "cli":
+            user_agent = f"{user_agent} cli"
         self._http = httpx.Client(
             base_url=self._base_url,
-            headers={"x-apikey": self._api_key, "Content-Type": "application/json"},
+            headers={
+                "x-apikey": self._api_key,
+                "Content-Type": "application/json",
+                "User-Agent": user_agent,
+                "X-Source": source,
+            },
             timeout=self._timeout,
         )
 

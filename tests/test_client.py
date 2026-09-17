@@ -68,6 +68,20 @@ def test_client_reads_env_var(monkeypatch):
     c.close()
 
 
+def test_client_identifies_as_sdk():
+    c = DatabarClient(api_key="key")
+    assert c._http.headers["X-Source"] == "sdk"
+    assert str(c._http.headers["User-Agent"]).startswith("databar-python/")
+    c.close()
+
+
+def test_client_identifies_as_cli():
+    c = DatabarClient(api_key="key", client_source="cli")
+    assert c._http.headers["X-Source"] == "cli"
+    assert "cli" in str(c._http.headers["User-Agent"])
+    c.close()
+
+
 def test_client_context_manager(httpx_mock: HTTPXMock):
     httpx_mock.add_response(url=f"{BASE_URL}/user/me", json=user_payload())
     with DatabarClient(api_key="key") as c:

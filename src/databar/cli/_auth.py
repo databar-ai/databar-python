@@ -54,7 +54,7 @@ def get_api_key() -> str:
 
 def get_client() -> DatabarClient:
     """Return a configured DatabarClient using the resolved API key."""
-    return DatabarClient(api_key=get_api_key())
+    return DatabarClient(api_key=get_api_key(), client_source="cli")
 
 
 # ---------------------------------------------------------------------------
