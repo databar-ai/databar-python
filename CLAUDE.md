@@ -213,7 +213,7 @@ client.create_rows(table.identifier, [InsertRow(fields={"email": "alice@example.
 
 # Tasks
 task = client.get_task(task_id)
-# task.progress → {"total", "completed", "failed", "processing"} while a bulk run is going
+# task.progress → {"total", "completed", "no_data", "failed", "processing"} while a bulk run is going
 # client.get_task(task_id, include_partial=True).data → rows already finished
 client.cancel_task(task_id)   # stops it; poll_task then raises DatabarTaskCancelledError
 ```

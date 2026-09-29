@@ -8,6 +8,16 @@ All notable changes to the Databar Python SDK are documented here.
 
 ---
 
+## [2.6.1] — 2026-09-30
+
+### Fixed
+
+- **Bulk task progress** — `progress.no_data` is a clean miss, `progress.failed`
+  is a real error. `databar task get` prints them separately. Older CLIs labeled
+  the `failed` count as "no data".
+
+---
+
 ## [2.6.0] — 2026-09-29
 
 ### Added

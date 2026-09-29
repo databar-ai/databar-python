@@ -44,8 +44,8 @@ def _print_status(task) -> None:
         p = task.progress
         console.print(
             f"[dim]Progress: {p.get('completed', 0)} completed, "
-            f"{p.get('failed', 0)} no data, {p.get('processing', 0)} still running "
-            f"of {p.get('total', 0)}[/dim]"
+            f"{p.get('no_data', 0)} no data, {p.get('failed', 0)} failed, "
+            f"{p.get('processing', 0)} still running of {p.get('total', 0)}[/dim]"
         )
 
 

@@ -266,9 +266,9 @@ class TaskResponse(BaseModel):
     progress: Optional[Dict[str, int]] = Field(
         default=None,
         description=(
-            "How far a bulk run has got: total, completed, failed and processing counts "
-            "of inputs. `failed` covers every finished input that produced no data, clean "
-            "misses included. Omitted for single (non-bulk) runs."
+            "How far a bulk run has got: total, completed, no_data, failed and processing "
+            "counts of inputs. `no_data` is a clean miss. `failed` is a real error on that "
+            "input. Omitted for single (non-bulk) runs."
         ),
     )
     data: Optional[Union[List[Any], Dict[str, Any]]] = Field(
