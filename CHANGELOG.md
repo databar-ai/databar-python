@@ -6,11 +6,20 @@ All notable changes to the Databar Python SDK are documented here.
 
 ## [Unreleased]
 
+---
+
+## [2.6.0] — 2026-09-29
+
 ### Added
 
+- **`databar login` opens the browser** — OAuth consent on databar.ai, then the
+  workspace API key is saved to `~/.databar/config`. `databar logout` removes it.
+  `databar login --api-key` and `DATABAR_API_KEY` stay for CI, SSH, and agents.
 - **`run_flow_bulk` / `run_flow_bulk_sync`** — run a flow over a list of
   input sets in one call. Polled `data` is aligned to the inputs, with
   `None` for misses (same contract as enrichment/waterfall bulk).
+- **`validate_flow_config` / `estimate_flow_cost`** — check a flow config and
+  estimate its cost before running it.
 
 ---
 
