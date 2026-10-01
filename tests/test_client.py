@@ -112,6 +112,24 @@ def test_http_error_mapping(client: DatabarClient, httpx_mock: HTTPXMock, status
         client.get_user()
 
 
+def test_validation_envelope_is_a_validation_error(client: DatabarClient, httpx_mock: HTTPXMock):
+    httpx_mock.add_response(
+        url=f"{BASE_URL}/enrichments/1/run",
+        method="POST",
+        status_code=400,
+        json={
+            "error": "INVALID_PARAMS",
+            "detail": "Row 1: domain: This field is required.",
+            "rows": [{"position": 1, "fields": {"domain": ["This field is required."]}}],
+        },
+    )
+    with pytest.raises(DatabarValidationError) as exc:
+        client.run_enrichment(1, {"domain": ""})
+    assert exc.value.status_code == 400
+    assert exc.value.message == "Row 1: domain: This field is required."
+    assert exc.value.errors[0]["position"] == 1
+
+
 def test_retry_on_500(client: DatabarClient, httpx_mock: HTTPXMock):
     httpx_mock.add_response(url=f"{BASE_URL}/user/me", status_code=500, json={"detail": "oops"})
     httpx_mock.add_response(url=f"{BASE_URL}/user/me", status_code=500, json={"detail": "oops"})

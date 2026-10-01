@@ -59,7 +59,12 @@ class DatabarGoneError(DatabarError):
 
 
 class DatabarValidationError(DatabarError):
-    """Raised on 422 — request body failed schema validation."""
+    """Raised when the API rejected the input.
+
+    400 is a business-rule failure (unknown column, bad enrichment param).
+    422 is a schema failure (wrong JSON shape). Both use the same body:
+    ``{"error": "<CODE>", "detail": "<string>"}``.
+    """
 
     def __init__(
         self,

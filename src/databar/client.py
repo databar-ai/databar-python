@@ -223,6 +223,18 @@ class DatabarClient:
                 status_code=status,
                 response_body=body,
             )
+        if status in (400, 422) and isinstance(body, dict) and isinstance(body.get("error"), str):
+            detail = body.get("detail")
+            message = detail if isinstance(detail, str) and detail else body["error"]
+            errors = body.get("fields")
+            if not isinstance(errors, list):
+                errors = body.get("rows") if isinstance(body.get("rows"), list) else []
+            raise DatabarValidationError(
+                message,
+                errors=errors,
+                status_code=status,
+                response_body=body,
+            )
         if status == 422:
             detail = body.get("detail", [])
             if isinstance(detail, list):
