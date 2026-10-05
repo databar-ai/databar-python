@@ -549,14 +549,12 @@ class DatabarClient:
         """
         Submit a waterfall run.
 
-        If enrichments is None or empty, all available providers are used
-        (auto-resolved from get_waterfall, same behavior as MCP).
+        If enrichments is None or empty, the server runs the waterfall's default
+        cascade: providers with ``enabled_by_default=True``, in configured order.
         """
-        if not enrichments:
-            waterfall = self.get_waterfall(identifier)
-            enrichments = [e.id for e in waterfall.available_enrichments]
-
-        payload: Dict[str, Any] = {"params": params, "enrichments": enrichments}
+        payload: Dict[str, Any] = {"params": params}
+        if enrichments:
+            payload["enrichments"] = enrichments
         if email_verifier is not None:
             payload["email_verifier"] = email_verifier
 
@@ -575,12 +573,12 @@ class DatabarClient:
         The polled result is aligned to the inputs: one element per input, in the
         same order as ``params``, with ``None`` for inputs that returned no data
         (``len(result) == len(params)``, ``result[i]`` ↔ ``params[i]``).
-        """
-        if not enrichments:
-            waterfall = self.get_waterfall(identifier)
-            enrichments = [e.id for e in waterfall.available_enrichments]
 
-        payload: Dict[str, Any] = {"params": params, "enrichments": enrichments}
+        If enrichments is None or empty, the server runs the default cascade.
+        """
+        payload: Dict[str, Any] = {"params": params}
+        if enrichments:
+            payload["enrichments"] = enrichments
         if email_verifier is not None:
             payload["email_verifier"] = email_verifier
 
@@ -1019,8 +1017,8 @@ class DatabarClient:
         self,
         table_uuid: str,
         waterfall_identifier: str,
-        enrichments: List[int],
-        mapping: Dict[str, str],
+        enrichments: Optional[List[int]] = None,
+        mapping: Optional[Dict[str, str]] = None,
         email_verifier: Optional[int] = None,
     ) -> AddWaterfallResponse:
         """
@@ -1029,20 +1027,24 @@ class DatabarClient:
         Args:
             table_uuid: UUID of the table.
             waterfall_identifier: Waterfall slug (e.g. 'email_getter').
-            enrichments: List of enrichment (provider) IDs to use in the cascade.
-            mapping: Maps waterfall parameter names to column UUIDs or column names.
-                The API resolves names to UUIDs automatically.
+            enrichments: Optional provider IDs, in cascade order. If None or empty,
+                the server attaches the default cascade (providers with
+                ``enabled_by_default=True``).
+            mapping: Required. Maps waterfall parameter names to column UUIDs or
+                column names. The API resolves names to UUIDs automatically.
             email_verifier: Optional enrichment ID for email verification.
 
         Returns:
             :class:`AddWaterfallResponse` with ``id`` and ``waterfall_name``.
             Use ``id`` with run_table_enrichment().
         """
-        payload: Dict[str, Any] = {
-            "waterfall": waterfall_identifier,
-            "enrichments": enrichments,
-            "mapping": mapping,
-        }
+        # ponytail: mapping keeps its positional slot after enrichments so existing
+        # positional callers don't break, hence the default + runtime check.
+        if mapping is None:
+            raise TypeError("add_waterfall() missing required argument: 'mapping'")
+        payload: Dict[str, Any] = {"waterfall": waterfall_identifier, "mapping": mapping}
+        if enrichments:
+            payload["enrichments"] = enrichments
         if email_verifier is not None:
             payload["email_verifier"] = email_verifier
         data = self._request("POST", f"/table/{table_uuid}/add-waterfall", json=payload)

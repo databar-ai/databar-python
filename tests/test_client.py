@@ -227,14 +227,22 @@ def test_list_waterfalls(client: DatabarClient, httpx_mock: HTTPXMock):
     assert result[0].identifier == "email_getter"
 
 
-def test_run_waterfall_auto_resolves_providers(client: DatabarClient, httpx_mock: HTTPXMock):
-    httpx_mock.add_response(url=f"{BASE_URL}/waterfalls/email_getter", json=waterfall_payload())
+def test_run_waterfall_without_providers_leaves_the_default_to_the_server(client: DatabarClient, httpx_mock: HTTPXMock):
     httpx_mock.add_response(url=f"{BASE_URL}/waterfalls/email_getter/run", json=task_payload("processing"))
+    httpx_mock.add_response(url=f"{BASE_URL}/waterfalls/email_getter/bulk-run", json=task_payload("processing"))
     task = client.run_waterfall("email_getter", {"linkedin_url": "https://linkedin.com/in/alice"})
+    client.run_waterfall_bulk("email_getter", [{"linkedin_url": "https://linkedin.com/in/alice"}])
     assert task.task_id == "task-123"
-    req = httpx_mock.get_requests()[-1]
-    body = json.loads(req.content)
-    assert body["enrichments"] == [10, 11]
+    # One POST each, no GET /waterfalls/{id} to resolve the provider list client-side.
+    requests = httpx_mock.get_requests()
+    assert [r.method for r in requests] == ["POST", "POST"]
+    assert all("enrichments" not in json.loads(r.content) for r in requests)
+
+
+def test_run_waterfall_passes_explicit_providers(client: DatabarClient, httpx_mock: HTTPXMock):
+    httpx_mock.add_response(url=f"{BASE_URL}/waterfalls/person_getter/run", json=task_payload("processing"))
+    client.run_waterfall("person_getter", {"email": "a@b.com"}, enrichments=[113])
+    assert json.loads(httpx_mock.get_requests()[-1].content)["enrichments"] == [113]
 
 
 # ===========================================================================

@@ -6,6 +6,16 @@ All notable changes to the Databar Python SDK are documented here.
 
 ## [Unreleased]
 
+### Changed
+
+- **Waterfall default providers** — `run_waterfall`, `run_waterfall_bulk`,
+  `add_waterfall` and `databar waterfall run/bulk` without providers now run the
+  waterfall's default cascade (providers with `enabled_by_default=True`) instead of
+  every provider. Optional add-ons such as Apollo (113) and MixRank (1304) run only
+  when passed explicitly. `add_waterfall` no longer requires `enrichments`.
+- `WaterfallEnrichment.enabled_by_default`; `databar waterfall get` shows it as
+  the `default` column.
+
 ---
 
 ## [2.6.1] — 2026-09-30

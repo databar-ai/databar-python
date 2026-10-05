@@ -119,7 +119,8 @@ for choice in choices.items:
 # List waterfalls
 waterfalls = client.list_waterfalls()
 
-# Run a waterfall (tries all providers in sequence)
+# Run a waterfall (tries the default providers in sequence; optional add-ons
+# such as Apollo run only when you pass their id in `enrichments`)
 result = client.run_waterfall_sync(
     "email_getter",
     {"linkedin_url": "https://linkedin.com/in/alice"},

@@ -333,6 +333,22 @@ def test_add_waterfall(client: DatabarClient, httpx_mock: HTTPXMock):
     assert body["email_verifier"] == 10
 
 
+def test_add_waterfall_without_providers_leaves_the_default_to_the_server(client: DatabarClient, httpx_mock: HTTPXMock):
+    httpx_mock.add_response(
+        url=f"{BASE_URL}/table/tbl-1/add-waterfall",
+        json={"id": 56, "waterfall_name": "Person Getter"},
+    )
+    client.add_waterfall("tbl-1", waterfall_identifier="person_getter", mapping={"email": "email"})
+    body = json.loads(httpx_mock.get_requests()[0].content)
+    assert "enrichments" not in body
+    assert body["mapping"] == {"email": "email"}
+
+
+def test_add_waterfall_requires_mapping(client: DatabarClient):
+    with pytest.raises(TypeError, match="mapping"):
+        client.add_waterfall("tbl-1", waterfall_identifier="person_getter")
+
+
 def test_get_table_waterfalls(client: DatabarClient, httpx_mock: HTTPXMock):
     httpx_mock.add_response(
         url=f"{BASE_URL}/table/tbl-1/waterfalls",

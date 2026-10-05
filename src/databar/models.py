@@ -301,6 +301,8 @@ class WaterfallEnrichment(BaseModel):
     description: str
     price: Union[str, float]
     params: List[str]
+    # False = optional add-on, run only when its id is passed explicitly.
+    enabled_by_default: bool = True
 
 
 class Waterfall(BaseModel):

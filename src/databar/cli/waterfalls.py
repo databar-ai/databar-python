@@ -23,6 +23,8 @@ from ._output import OutputFormat, console, error, info, output
 
 app = typer.Typer(help="Search and run waterfall enrichments.")
 
+PROVIDERS_HELP = "Comma-separated provider IDs (default: providers enabled by default)."
+
 
 @app.command("list")
 def list_waterfalls(
@@ -99,10 +101,10 @@ def get_waterfall(
     if w.available_enrichments:
         console.print("\n[bold]Available providers:[/bold]")
         rows = [
-            {"id": e.id, "name": e.name, "price": e.price}
+            {"id": e.id, "name": e.name, "price": e.price, "default": "yes" if e.enabled_by_default else "no"}
             for e in w.available_enrichments
         ]
-        output(rows, OutputFormat.TABLE, table_columns=["id", "name", "price"])
+        output(rows, OutputFormat.TABLE, table_columns=["id", "name", "price", "default"])
 
 
 @app.command("info", hidden=True)
@@ -118,7 +120,7 @@ def info_waterfall(
 def run_waterfall(
     identifier: str = typer.Argument(..., help="Waterfall identifier."),
     params_json: str = typer.Option(..., "--params", "-p", help='JSON params, e.g. \'{"linkedin_url":"https://..."}\''),
-    providers: Optional[str] = typer.Option(None, "--providers", help="Comma-separated provider IDs (default: all)."),
+    providers: Optional[str] = typer.Option(None, "--providers", help=PROVIDERS_HELP),
     email_verifier: Optional[int] = typer.Option(None, "--email-verifier", help="Email verifier enrichment ID."),
     fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "--output", "-f"),
     raw: bool = typer.Option(False, "--raw", help="Print raw result without formatting."),
@@ -160,7 +162,7 @@ def run_waterfall(
 def bulk_waterfall(
     identifier: str = typer.Argument(..., help="Waterfall identifier."),
     input_file: Path = typer.Option(..., "--input", "-i", help="CSV file with one row per input.", exists=True),
-    providers: Optional[str] = typer.Option(None, "--providers", help="Comma-separated provider IDs (default: all)."),
+    providers: Optional[str] = typer.Option(None, "--providers", help=PROVIDERS_HELP),
     email_verifier: Optional[int] = typer.Option(None, "--email-verifier", help="Email verifier enrichment ID."),
     fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "--output", "-f"),
     out: Optional[str] = typer.Option(None, "--out", "-o", help="Output file (for CSV format)."),
