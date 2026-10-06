@@ -360,7 +360,7 @@ toml = [
 
 [[package]]
 name = "databar"
-version = "2.6.1"
+version = "2.7.0"
 source = { editable = "." }
 dependencies = [
     { name = "httpx" },

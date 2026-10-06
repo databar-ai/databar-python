@@ -6,6 +6,10 @@ All notable changes to the Databar Python SDK are documented here.
 
 ## [Unreleased]
 
+---
+
+## [2.7.0] — 2026-10-06
+
 ### Changed
 
 - **Waterfall default providers** — `run_waterfall`, `run_waterfall_bulk`,
