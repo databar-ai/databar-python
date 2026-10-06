@@ -6,6 +6,10 @@ All notable changes to the Databar Python SDK are documented here.
 
 ## [Unreleased]
 
+---
+
+## [2.8.0] — 2026-10-06
+
 ### Added
 
 - **Workbooks** — `list_workbooks`, `get_workbook`, `rename_workbook`,
