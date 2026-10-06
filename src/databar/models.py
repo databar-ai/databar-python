@@ -503,7 +503,7 @@ class RestoreFlowVersionResult(BaseModel):
 class Table(BaseModel):
     """A Databar table.
 
-    Fields: identifier, name, created_at, updated_at, workspace_identifier, table_url.
+    Fields: identifier, name, created_at, updated_at, workspace_identifier, workbook, table_url.
 
     Property aliases: .id → .identifier, .uuid → .identifier.
 
@@ -518,6 +518,7 @@ class Table(BaseModel):
     created_at: str
     updated_at: str
     workspace_identifier: Optional[str] = None
+    workbook: Optional[str] = Field(None, description="Parent workbook identifier (wb_…).")
     table_url: Optional[str] = None
 
     @property
@@ -909,3 +910,56 @@ class Folder(BaseModel):
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
     table_count: Optional[int] = None
+
+
+# ===========================================================================
+# Workbooks
+# ===========================================================================
+
+
+class WorkbookTable(BaseModel):
+    """One sheet inside a workbook."""
+
+    identifier: str
+    name: str
+    position: int
+
+
+class Workbook(BaseModel):
+    """A multi-sheet document that owns one or more tables.
+
+    Fields: identifier, name, created_at, updated_at, folder_id, tables, tables_count.
+    """
+
+    identifier: str
+    name: str
+    created_at: str
+    updated_at: str
+    folder_id: Optional[int] = None
+    tables: List[WorkbookTable] = Field(default_factory=list)
+    tables_count: int = 0
+
+    @property
+    def id(self) -> str:
+        return self.identifier
+
+
+class ExportStatus(BaseModel):
+    status: str
+    file_id: Optional[int] = None
+    file: Optional[str] = None
+    message: Optional[str] = None
+
+
+class DedupeResult(BaseModel):
+    count_all_rows: int
+    count_rows_delete: int
+
+
+class TrashItem(BaseModel):
+    kind: str
+    identifier: str
+    name: str
+    trashed_at: Optional[str] = None
+    tables_count: Optional[int] = None
+    workbook: Optional[Dict[str, Any]] = None

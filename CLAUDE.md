@@ -154,6 +154,32 @@ databar table run-enrichment <table-uuid> --enrichment-id <TABLE-ENRICHMENT-ID>
 > `run-enrichment` uses the **TABLE-ENRICHMENT ID** (from `add-enrichment` output or
 > `table enrichments`), NOT the catalog enrichment ID. These are different numbers.
 
+```bash
+databar table duplicate <table-uuid> --format json
+databar table clear <table-uuid> # queued; rows clear in the background
+databar table export <table-uuid> --export-format csv # then poll:
+databar table get-export <table-uuid> --format json # .file is the download URL
+databar table dedupe <table-uuid> [--columns uuid1,uuid2]
+```
+
+### Workbooks & trash
+
+A workbook is a multi-sheet document that owns one or more tables.
+
+```bash
+databar workbook list --format json
+databar workbook get <wb_id> --format json
+databar workbook rename <wb_id> --name "New name"
+databar workbook duplicate <wb_id>
+databar workbook merge --target <wb_id> --sources wb_a,wb_b
+databar workbook add-table <wb_id> --name "Sheet 2"
+databar workbook delete <wb_id> # moves to trash for 30 days
+
+databar trash list --format json
+databar trash restore --workbooks wb_a --tables <table-uuid>
+databar trash purge --workbooks wb_a # permanent
+```
+
 ### Tasks
 
 ```bash

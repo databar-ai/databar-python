@@ -65,10 +65,12 @@ from .models import (
     Connector,
     CreateColumnResponse,
     DedupeOptions,
+    DedupeResult,
     Enrichment,
     EnrichmentListResponse,
     EnrichmentSummary,
     Exporter,
+    ExportStatus,
     ExporterDetail,
     ExporterListResponse,
     ExporterParam,
@@ -93,10 +95,12 @@ from .models import (
     Table,
     TableEnrichment,
     TaskResponse,
+    TrashItem,
     UpsertResponse,
     UpsertRow,
     User,
     Waterfall,
+    Workbook,
 )
 
 DEFAULT_BASE_URL = "https://api.databar.ai/v1"
@@ -866,6 +870,53 @@ class DatabarClient:
         data = self._request("PATCH", f"/table/{table_uuid}", json={"name": name})
         return Table.model_validate(data)
 
+    def duplicate_table(self, table_uuid: str) -> Table:
+        """Duplicate a table into a new workbook."""
+        data = self._request("POST", "/table/duplicate", json={"table": table_uuid})
+        return Table.model_validate(data)
+
+    def move_table(
+        self,
+        table_uuid: str,
+        *,
+        workbook: Optional[str] = None,
+        new_workbook: bool = False,
+        name: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Move a table into another workbook, or into a freshly created workbook."""
+        payload: Dict[str, Any] = {"new_workbook": new_workbook}
+        if workbook is not None:
+            payload["workbook"] = workbook
+        if name is not None:
+            payload["name"] = name
+        return self._request("POST", f"/table/{table_uuid}/move", json=payload) or {}
+
+    def clear_table(self, table_uuid: str) -> Dict[str, Any]:
+        """Queue deletion of every row in the table."""
+        return self._request("POST", f"/table/{table_uuid}/clear") or {}
+
+    def export_table(self, table_uuid: str, format: str = "csv") -> ExportStatus:
+        """Start a table export. Poll :meth:`get_table_export` for the file URL."""
+        data = self._request("POST", f"/table/{table_uuid}/export", json={"format": format})
+        return ExportStatus.model_validate(data)
+
+    def get_table_export(self, table_uuid: str) -> ExportStatus:
+        """Status of the latest export for a table."""
+        data = self._request("GET", f"/table/{table_uuid}/export")
+        return ExportStatus.model_validate(data)
+
+    def dedupe_table_rows(
+        self,
+        table_uuid: str,
+        columns: Optional[List[str]] = None,
+    ) -> DedupeResult:
+        """Delete duplicate rows, keeping the oldest of each group."""
+        payload: Dict[str, Any] = {}
+        if columns is not None:
+            payload["columns"] = columns
+        data = self._request("POST", f"/table/{table_uuid}/rows/dedupe", json=payload or None)
+        return DedupeResult.model_validate(data)
+
     # -----------------------------------------------------------------------
     # Tables — Columns
     # -----------------------------------------------------------------------
@@ -915,6 +966,17 @@ class DatabarClient:
     def delete_column(self, table_uuid: str, column_id: str) -> None:
         """Delete a column from a table."""
         self._request("DELETE", f"/table/{table_uuid}/columns/{column_id}")
+
+    def reorder_column(self, table_uuid: str, column_id: str, index: int) -> Dict[str, Any]:
+        """Move a column to a new 0-based index among non-system columns."""
+        return (
+            self._request(
+                "POST",
+                f"/table/{table_uuid}/columns/{column_id}/reorder",
+                json={"index": index},
+            )
+            or {}
+        )
 
     # -----------------------------------------------------------------------
     # Tables — Enrichments
@@ -980,6 +1042,27 @@ class DatabarClient:
             "launch_strategy": launch_strategy,
         }
         data = self._request("POST", f"/table/{table_uuid}/add-enrichment", json=payload)
+        return AddEnrichmentResponse.model_validate(data)
+
+    def update_enrichment(
+        self,
+        table_uuid: str,
+        enrichment_id: int,
+        *,
+        mapping: Optional[Dict[str, Any]] = None,
+        launch_strategy: Optional[Literal["run_on_click", "run_on_update"]] = None,
+    ) -> AddEnrichmentResponse:
+        """Update the mapping and/or launch strategy of an attached enrichment."""
+        payload: Dict[str, Any] = {}
+        if mapping is not None:
+            payload["mapping"] = mapping
+        if launch_strategy is not None:
+            payload["launch_strategy"] = launch_strategy
+        data = self._request(
+            "PATCH",
+            f"/table/{table_uuid}/enrichments/{enrichment_id}",
+            json=payload,
+        )
         return AddEnrichmentResponse.model_validate(data)
 
     def run_table_enrichment(
@@ -1431,3 +1514,93 @@ class DatabarClient:
             payload["folder_id"] = folder_id
         data = self._request("POST", "/folders/move-table", json=payload)
         return data or {}
+
+    # -----------------------------------------------------------------------
+    # Workbooks
+    # -----------------------------------------------------------------------
+
+    def list_workbooks(self) -> List[Workbook]:
+        """List workbooks (multi-sheet documents) in the workspace."""
+        data = self._request("GET", "/workbooks")
+        return [Workbook.model_validate(w) for w in data]
+
+    def get_workbook(self, workbook_id: str) -> Workbook:
+        """Get one workbook and its sheets."""
+        data = self._request("GET", f"/workbooks/{workbook_id}")
+        return Workbook.model_validate(data)
+
+    def rename_workbook(self, workbook_id: str, name: str) -> Workbook:
+        """Rename a workbook."""
+        data = self._request("PATCH", f"/workbooks/{workbook_id}", json={"name": name})
+        return Workbook.model_validate(data)
+
+    def delete_workbook(self, workbook_id: str) -> None:
+        """Move a workbook to Trash."""
+        self._request("DELETE", f"/workbooks/{workbook_id}")
+
+    def duplicate_workbook(self, workbook_id: str) -> Workbook:
+        """Duplicate every sheet in a workbook into a new document."""
+        data = self._request("POST", f"/workbooks/{workbook_id}/duplicate")
+        return Workbook.model_validate(data)
+
+    def merge_workbooks(self, target: str, sources: List[str]) -> Workbook:
+        """Move every live table from source workbooks onto target."""
+        data = self._request("POST", "/workbooks/merge", json={"target": target, "sources": sources})
+        return Workbook.model_validate(data)
+
+    def add_workbook_table(self, workbook_id: str, name: Optional[str] = None) -> Dict[str, Any]:
+        """Add an empty sheet to a workbook."""
+        payload: Dict[str, Any] = {}
+        if name is not None:
+            payload["name"] = name
+        return self._request("POST", f"/workbooks/{workbook_id}/tables", json=payload or None) or {}
+
+    def reorder_workbook_tables(self, workbook_id: str, table_ids: List[str]) -> Workbook:
+        """Set sheet order. ``table_ids`` must list every live table exactly once."""
+        data = self._request(
+            "POST",
+            f"/workbooks/{workbook_id}/tables/reorder",
+            json={"table_ids": table_ids},
+        )
+        return Workbook.model_validate(data)
+
+    # -----------------------------------------------------------------------
+    # Trash
+    # -----------------------------------------------------------------------
+
+    def list_trash(self) -> List[TrashItem]:
+        """List binned workbooks and tables."""
+        data = self._request("GET", "/trash")
+        return [TrashItem.model_validate(i) for i in data]
+
+    def restore_trash(
+        self,
+        *,
+        workbooks: Optional[List[str]] = None,
+        tables: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        """Restore workbooks and/or tables from Trash."""
+        return (
+            self._request(
+                "POST",
+                "/trash/restore",
+                json={"workbooks": workbooks or [], "tables": tables or []},
+            )
+            or {}
+        )
+
+    def purge_trash(
+        self,
+        *,
+        workbooks: Optional[List[str]] = None,
+        tables: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        """Permanently delete workbooks and/or tables from Trash."""
+        return (
+            self._request(
+                "POST",
+                "/trash/delete-forever",
+                json={"workbooks": workbooks or [], "tables": tables or []},
+            )
+            or {}
+        )

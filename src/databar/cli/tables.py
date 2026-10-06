@@ -386,6 +386,89 @@ def run_table_enrichment(
         output(result, OutputFormat.JSON)
 
 
+@app.command("duplicate")
+def duplicate_table(
+    table_uuid: str = _TABLE_UUID,
+    fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "--output", "-f"),
+) -> None:
+    """Duplicate a table into a new workbook."""
+    client = get_client()
+    try:
+        table = client.duplicate_table(table_uuid)
+    except DatabarError as e:
+        error(e)
+    finally:
+        client.close()
+    success(f"Duplicated as {table.identifier}")
+    output({"uuid": table.identifier, "name": table.name, "workbook": table.workbook}, fmt)
+
+
+@app.command("clear")
+def clear_table(table_uuid: str = _TABLE_UUID) -> None:
+    """Queue deletion of every row in the table."""
+    client = get_client()
+    try:
+        client.clear_table(table_uuid)
+    except DatabarError as e:
+        error(e)
+    finally:
+        client.close()
+    success("Clear queued.")
+
+
+@app.command("export")
+def export_table(
+    table_uuid: str = _TABLE_UUID,
+    format: str = typer.Option("csv", "--export-format", help="csv, xlsx, or sheets."),
+    fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "--output", "-f"),
+) -> None:
+    """Start a table export. Poll status with get-export."""
+    client = get_client()
+    try:
+        status = client.export_table(table_uuid, format=format)
+    except DatabarError as e:
+        error(e)
+    finally:
+        client.close()
+    success(f"Export queued (file_id={status.file_id})")
+    output(status.model_dump(), fmt)
+
+
+@app.command("get-export")
+def get_table_export(
+    table_uuid: str = _TABLE_UUID,
+    fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "--output", "-f"),
+) -> None:
+    """Check the latest export status / download URL."""
+    client = get_client()
+    try:
+        status = client.get_table_export(table_uuid)
+    except DatabarError as e:
+        error(e)
+    finally:
+        client.close()
+    output(status.model_dump(), fmt)
+
+
+@app.command("dedupe")
+def dedupe_table(
+    table_uuid: str = _TABLE_UUID,
+    columns: Optional[str] = typer.Option(None, "--columns", help="Comma-separated column UUIDs."),
+    fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "--output", "-f"),
+) -> None:
+    """Delete duplicate rows, keeping the oldest of each group."""
+    col_ids = [c.strip() for c in columns.split(",")] if columns else None
+    client = get_client()
+    try:
+        result = client.dedupe_table_rows(table_uuid, columns=col_ids)
+    except DatabarError as e:
+        error(e)
+    finally:
+        client.close()
+    success(f"Deleted {result.count_rows_delete} duplicate rows.")
+    output(result.model_dump(), fmt)
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

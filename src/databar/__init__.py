@@ -108,6 +108,12 @@ from .models import (
     Connector,
     # Folders
     Folder,
+    # Workbooks / trash
+    Workbook,
+    WorkbookTable,
+    ExportStatus,
+    DedupeResult,
+    TrashItem,
 )
 
 __version__ = "2.7.0"
@@ -195,4 +201,10 @@ __all__ = [
     "Connector",
     # folders
     "Folder",
+    # workbooks
+    "Workbook",
+    "WorkbookTable",
+    "ExportStatus",
+    "DedupeResult",
+    "TrashItem",
 ]

@@ -12,7 +12,7 @@ import typer
 
 from databar import __version__
 
-from . import enrichments, flows, tables, tasks, waterfalls
+from . import enrichments, flows, tables, tasks, waterfalls, workbooks
 from ._auth import app as auth_app
 
 app = typer.Typer(
@@ -35,6 +35,8 @@ app.add_typer(waterfalls.app, name="waterfall")
 app.add_typer(flows.app, name="flow")
 app.add_typer(tables.app, name="table")
 app.add_typer(tasks.app, name="task")
+app.add_typer(workbooks.workbook_app, name="workbook")
+app.add_typer(workbooks.trash_app, name="trash")
 
 
 @app.command("onboard")

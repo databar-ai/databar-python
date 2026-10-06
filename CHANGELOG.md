@@ -6,6 +6,17 @@ All notable changes to the Databar Python SDK are documented here.
 
 ## [Unreleased]
 
+### Added
+
+- **Workbooks** — `list_workbooks`, `get_workbook`, `rename_workbook`,
+  `delete_workbook`, `duplicate_workbook`, `merge_workbooks`, `add_workbook_table`,
+  `reorder_workbook_tables`, `move_table`; CLI `databar workbook list/get/rename/delete/duplicate/merge/add-table`.
+  `Table.workbook` holds the parent workbook id.
+- **Trash** — `list_trash`, `restore_trash`, `purge_trash`; CLI `databar trash list/restore/purge`.
+- **Table operations** — `duplicate_table`, `clear_table`, `export_table` /
+  `get_table_export`, `dedupe_table_rows`, `reorder_column`, `update_enrichment`
+  (mapping and/or `run_on_click` / `run_on_update`); CLI `databar table duplicate/clear/export/get-export/dedupe`.
+
 ---
 
 ## [2.7.0] — 2026-10-06
