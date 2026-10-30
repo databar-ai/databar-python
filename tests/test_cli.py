@@ -759,7 +759,7 @@ def test_task_cancel_reports_a_finished_task(monkeypatch):
 def test_version_flag():
     result = runner.invoke(app, ["--version"])
     assert result.exit_code == 0
-    assert "2.8.0" in result.output
+    assert "2.9.0" in result.output
 
 
 def test_output_module_does_not_import_click():
@@ -767,3 +767,75 @@ def test_output_module_does_not_import_click():
     import databar.cli._output as out
 
     assert "click" not in out.__dict__
+
+
+# ---------------------------------------------------------------------------
+# Workbook sheets: move / reorder
+# ---------------------------------------------------------------------------
+
+OTHER_UUID = "33333333-3333-3333-3333-333333333333"
+
+
+def test_table_move_to_workbook(monkeypatch):
+    mock = _client_mock()
+    mock.move_table.return_value = {"status": "moved", "workbook": "wb_target123", "table": TABLE_UUID}
+    monkeypatch.setattr("databar.cli.tables.get_client", lambda: mock)
+    result = invoke(["table", "move", TABLE_UUID, "--workbook", "wb_target123", "--format", "json"])
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.output)["data"]["workbook"] == "wb_target123"
+    mock.move_table.assert_called_once_with(TABLE_UUID, workbook="wb_target123", new_workbook=False, name=None)
+
+
+def test_table_move_to_new_workbook_with_name(monkeypatch):
+    mock = _client_mock()
+    mock.move_table.return_value = {"status": "created", "workbook": "wb_new12345", "table": TABLE_UUID}
+    monkeypatch.setattr("databar.cli.tables.get_client", lambda: mock)
+    result = invoke(["table", "move", TABLE_UUID, "--new-workbook", "--name", "Split out"])
+    assert result.exit_code == 0, result.output
+    mock.move_table.assert_called_once_with(TABLE_UUID, workbook=None, new_workbook=True, name="Split out")
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        [],
+        ["--workbook", "wb_target123", "--new-workbook"],
+        ["--workbook", "wb_target123", "--name", "X"],
+    ],
+)
+def test_table_move_needs_exactly_one_target(monkeypatch, args):
+    mock = _client_mock()
+    monkeypatch.setattr("databar.cli.tables.get_client", lambda: mock)
+    result = invoke(["table", "move", TABLE_UUID, *args])
+    assert result.exit_code == 2
+    mock.move_table.assert_not_called()
+
+
+def test_workbook_reorder(monkeypatch):
+    from databar.models import Workbook
+
+    mock = _client_mock()
+    mock.reorder_workbook_tables.return_value = Workbook(
+        identifier="wb_abc12345",
+        name="Doc",
+        created_at="2026-10-30T00:00:00Z",
+        updated_at="2026-10-30T00:00:00Z",
+        tables=[
+            {"identifier": TABLE_UUID, "name": "B", "position": 1},
+            {"identifier": OTHER_UUID, "name": "A", "position": 0},
+        ],
+        tables_count=2,
+    )
+    monkeypatch.setattr("databar.cli.workbooks.get_client", lambda: mock)
+    result = invoke(["workbook", "reorder", "wb_abc12345", "--tables", f"{OTHER_UUID}, {TABLE_UUID}", "--format", "json"])
+    assert result.exit_code == 0, result.output
+    mock.reorder_workbook_tables.assert_called_once_with("wb_abc12345", [OTHER_UUID, TABLE_UUID])
+    assert [t["uuid"] for t in json.loads(result.output)["data"]] == [OTHER_UUID, TABLE_UUID]
+
+
+def test_workbook_reorder_rejects_repeats(monkeypatch):
+    mock = _client_mock()
+    monkeypatch.setattr("databar.cli.workbooks.get_client", lambda: mock)
+    result = invoke(["workbook", "reorder", "wb_abc12345", "--tables", f"{TABLE_UUID},{TABLE_UUID}"])
+    assert result.exit_code == 2
+    mock.reorder_workbook_tables.assert_not_called()

@@ -12,6 +12,7 @@ CLI commands for tables and rows.
   databar table enrichments   <uuid>
   databar table add-enrichment <uuid> --enrichment-id <n> --mapping '{...}'
   databar table run-enrichment <uuid> --enrichment-id <n> [--run-strategy]
+  databar table move          <uuid> (--workbook <wb_id> | --new-workbook [--name])
 """
 
 from __future__ import annotations
@@ -467,6 +468,39 @@ def dedupe_table(
         client.close()
     success(f"Deleted {result.count_rows_delete} duplicate rows.")
     output(result.model_dump(), fmt)
+
+
+@app.command("move")
+def move_table(
+    table_uuid: str = _TABLE_UUID,
+    workbook: Optional[str] = typer.Option(None, "--workbook", "-w", help="Target workbook id (wb_…)."),
+    new_workbook: bool = typer.Option(False, "--new-workbook", help="Split the sheet out into a new workbook."),
+    name: Optional[str] = typer.Option(
+        None, "--name", "-n", help="Name of the new workbook (with --new-workbook). Default: the sheet name."
+    ),
+    fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "--output", "-f"),
+) -> None:
+    """Move a sheet into another workbook, or split it out into a new one."""
+    if bool(workbook) == new_workbook:
+        error("Pass --workbook <wb_id> or --new-workbook, not both.")
+    if name is not None and not new_workbook:
+        error("--name names the new workbook; use it with --new-workbook.")
+    client = get_client()
+    try:
+        result = client.move_table(table_uuid, workbook=workbook, new_workbook=new_workbook, name=name)
+    except DatabarError as e:
+        error(e)
+    finally:
+        client.close()
+    target = result.get("workbook")
+    status = result.get("status")
+    if status == "unchanged":
+        info(f"Table is already in workbook {target}.")
+    elif status == "created":
+        success(f"Moved into new workbook {target}")
+    else:
+        success(f"Moved into workbook {target}")
+    output(result, fmt)
 
 
 # ---------------------------------------------------------------------------

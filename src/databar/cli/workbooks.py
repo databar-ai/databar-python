@@ -8,6 +8,7 @@ CLI commands for workbooks and trash.
   databar workbook duplicate <id>
   databar workbook merge --target <id> --sources id1,id2
   databar workbook add-table <id> [--name]
+  databar workbook reorder <id> --tables uuid1,uuid2,...
   databar trash list
   databar trash restore --workbooks id1 [--tables uuid]
   databar trash purge --workbooks id1 [--tables uuid]
@@ -161,6 +162,39 @@ def add_workbook_table(
     finally:
         client.close()
     success(f"Added table {table.get('identifier')}")
+
+
+@workbook_app.command("reorder")
+def reorder_workbook_tables(
+    workbook_id: str = typer.Argument(..., help="Workbook identifier (wb_…)."),
+    tables: str = typer.Option(
+        ...,
+        "--tables",
+        "-t",
+        help="Comma-separated table UUIDs in the new order. List every sheet of the workbook exactly once.",
+    ),
+    fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "--output", "-f"),
+) -> None:
+    """Set the order of a workbook's sheets (tabs)."""
+    table_ids = [s.strip() for s in tables.split(",") if s.strip()]
+    if not table_ids:
+        error("Pass --tables with the workbook's table UUIDs in the new order.")
+    if len(set(table_ids)) != len(table_ids):
+        error("--tables lists a table more than once; list each sheet exactly once.")
+    client = get_client()
+    try:
+        wb = client.reorder_workbook_tables(workbook_id, table_ids)
+    except DatabarError as e:
+        error(e)
+    finally:
+        client.close()
+    success(f"Reordered {len(table_ids)} sheets in {wb.identifier}")
+    sheets = sorted(wb.tables, key=lambda t: t.position)
+    output(
+        [{"position": t.position, "uuid": t.identifier, "name": t.name} for t in sheets],
+        fmt,
+        table_columns=["position", "uuid", "name"],
+    )
 
 
 @trash_app.command("list")

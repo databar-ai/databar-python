@@ -8,6 +8,19 @@ All notable changes to the Databar Python SDK are documented here.
 
 ---
 
+## [2.9.0] — 2026-10-30
+
+### Added
+
+- **CLI `databar table move`** — move a sheet into another workbook
+  (`--workbook <wb_id>`) or split it out into a new one (`--new-workbook [--name]`).
+  Same as `move_table` in the SDK.
+- **CLI `databar workbook reorder`** — set the sheet order
+  (`--tables uuid1,uuid2,...`, every sheet exactly once). Same as
+  `reorder_workbook_tables` in the SDK.
+
+---
+
 ## [2.8.0] — 2026-10-06
 
 ### Added

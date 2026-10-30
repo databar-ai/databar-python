@@ -173,6 +173,9 @@ databar workbook rename <wb_id> --name "New name"
 databar workbook duplicate <wb_id>
 databar workbook merge --target <wb_id> --sources wb_a,wb_b
 databar workbook add-table <wb_id> --name "Sheet 2"
+databar workbook reorder <wb_id> --tables uuid1,uuid2 # every sheet exactly once
+databar table move <table-uuid> --workbook <wb_id> # move a sheet to another workbook
+databar table move <table-uuid> --new-workbook [--name "Split out"]
 databar workbook delete <wb_id> # moves to trash for 30 days
 
 databar trash list --format json

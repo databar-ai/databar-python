@@ -209,6 +209,35 @@ client.upsert_rows(table.identifier, rows)
 
 # Delete specific rows
 client.delete_rows(table.identifier, ["row-uuid-1", "row-uuid-2"])
+
+# Duplicate, clear, export, dedupe
+copy = client.duplicate_table(table.identifier)
+client.clear_table(table.identifier)
+client.export_table(table.identifier, format="csv")
+print(client.get_table_export(table.identifier).file)
+client.dedupe_table_rows(table.identifier)
+```
+
+### Workbooks and trash
+
+```python
+workbooks = client.list_workbooks()
+wb = client.get_workbook(workbooks[0].identifier)
+client.rename_workbook(wb.identifier, "Q4 leads")
+client.add_workbook_table(wb.identifier, name="Sheet 2")
+# Set the tab order: list every sheet of the workbook exactly once
+sheets = client.get_workbook(wb.identifier).tables
+client.reorder_workbook_tables(wb.identifier, [s.identifier for s in reversed(sheets)])
+client.duplicate_workbook(wb.identifier)
+client.merge_workbooks(wb.identifier, ["wb_other"])
+client.move_table(table.identifier, workbook=wb.identifier)
+client.move_table(table.identifier, new_workbook=True, name="Split out")
+client.delete_workbook(wb.identifier)
+
+for item in client.list_trash():
+    print(item.kind, item.identifier)
+client.restore_trash(workbooks=[wb.identifier])
+client.purge_trash(workbooks=[wb.identifier])
 ```
 
 ### Enrichments on tables
@@ -225,6 +254,12 @@ result = client.add_enrichment(
     launch_strategy="run_on_click",  # or "run_on_update"
 )
 print(f"Added enrichment #{result.id}: {result.enrichment_name}")
+
+client.update_enrichment(
+    table.identifier,
+    result.id,
+    launch_strategy="run_on_update",
+)
 
 # Run it (run_strategy: run_all | run_empty | run_errors)
 status = client.run_table_enrichment(
@@ -463,6 +498,32 @@ databar table upsert <uuid> --key-col email --input data.csv
 databar table enrichments <uuid>
 databar table add-enrichment <uuid> --enrichment-id 123 --mapping '{"email": "email_col"}'
 databar table run-enrichment <uuid> --enrichment-id <table-enrichment-id>
+
+# Duplicate, clear, export, dedupe
+databar table duplicate <uuid>
+databar table clear <uuid>
+databar table export <uuid> --export-format csv
+databar table get-export <uuid>
+databar table dedupe <uuid>
+```
+
+### Workbooks and trash
+
+```bash
+databar workbook list
+databar workbook get <wb_id>
+databar workbook rename <wb_id> --name "Q4 leads"
+databar workbook duplicate <wb_id>
+databar workbook add-table <wb_id> --name "Sheet 2"
+databar workbook reorder <wb_id> --tables <uuid_1>,<uuid_2>   # every sheet, once
+databar workbook merge --target <wb_id> --sources <wb_a>,<wb_b>
+databar table move <table-uuid> --workbook <wb_id>
+databar table move <table-uuid> --new-workbook --name "Split out"
+databar workbook delete <wb_id>
+
+databar trash list
+databar trash restore --workbooks <wb_id>
+databar trash purge --workbooks <wb_id>
 ```
 
 ### Tasks
