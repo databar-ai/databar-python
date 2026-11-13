@@ -8,6 +8,32 @@ All notable changes to the Databar Python SDK are documented here.
 
 ---
 
+## [2.10.0] — 2026-11-13
+
+### Added
+
+- **Flow output fields** — `FlowOutput` now carries `key`, `name`, `type`,
+  `description` and `fields` (sub-fields of an object). For a flow that answers
+  through Output steps these are the fields of every run's result, whichever
+  branch ran. `databar flow get` prints them under **Returns**.
+- **Validation warnings** — `validate_flow_config()` returns `warnings` next to
+  `errors` (a branch with no Output step, a Custom JSON response missing the
+  declared fields); they never make a config invalid. `FlowConfigError.field`
+  names the path the message is about.
+- **Run trace** — `get_task(task_id, include_trace=True)` fills `TaskResponse.trace`
+  for flow tasks: each step's result and `returned_by`, the Output step that built
+  `data` (which branch ran). CLI: `databar task get <id> --trace`.
+
+### Notes
+
+- Flow configs are plain dicts, so the new node types — Output steps
+  (`type: "output"` + top-level `output_fields`), multi-way conditions
+  (`rules` + `otherwise_nodes`), `table_add_row` / `table_upsert_row` and
+  `exporter` — work with `create_flow()` / `update_flow()` as they are. Read
+  the full schema from `GET /v1/flows/config-schema`.
+
+---
+
 ## [2.9.0] — 2026-10-30
 
 ### Added

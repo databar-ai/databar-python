@@ -100,6 +100,17 @@ def get_flow(
         ]
         output(rows, OutputFormat.TABLE, table_columns=["id", "required", "type", "description"])
 
+    declared = [out for out in f.outputs if out.type or out.description or out.fields]
+    if declared:
+        # Fields of a flow that answers through Output steps: the keys of every run's result.
+        console.print("[bold]Returns:[/bold]")
+        rows = []
+        for out in declared:
+            rows.append({"field": out.id, "type": out.type or "", "description": out.description or ""})
+            for sub in out.fields or []:
+                rows.append({"field": f"{out.id}.{sub.id}", "type": sub.type or "", "description": sub.description or ""})
+        output(rows, OutputFormat.TABLE, table_columns=["field", "type", "description"])
+
 
 @app.command("run")
 def run_flow(

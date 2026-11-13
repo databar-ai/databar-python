@@ -730,7 +730,31 @@ def test_task_get_partial_asks_for_finished_rows(monkeypatch):
     monkeypatch.setattr("databar.cli.tasks.get_client", lambda: mock)
     result = invoke(["task", "get", TASK_ID, "--partial"])
     assert result.exit_code == 0
-    mock.get_task.assert_called_once_with(TASK_ID, include_partial=True)
+    mock.get_task.assert_called_once_with(TASK_ID, include_partial=True, include_trace=False)
+
+
+def test_task_get_trace_names_the_output_step_that_answered(monkeypatch):
+    mock = _client_mock()
+    mock.get_task.return_value = TaskResponse(
+        task_id=TASK_ID,
+        status="completed",
+        data={"email": "a@b.co"},
+        trace={
+            "run_status": "completed",
+            "returned_by": {"id": "out_hot", "name": "Hot lead"},
+            "steps": [{"node_id": "check", "type": "condition"}, {"node_id": "out_hot", "type": "output"}],
+        },
+    )
+    monkeypatch.setattr("databar.cli.tasks.get_client", lambda: mock)
+    result = invoke(["task", "get", TASK_ID, "--trace"])
+    assert result.exit_code == 0
+    mock.get_task.assert_called_once_with(TASK_ID, include_partial=False, include_trace=True)
+    assert "Hot lead" in result.output
+
+    result = invoke(["task", "get", TASK_ID, "--trace", "--format", "json"])
+    payload = json.loads(result.stdout)["data"]
+    assert payload["trace"]["returned_by"]["id"] == "out_hot"
+    assert payload["data"] == {"email": "a@b.co"}
 
 
 def test_task_cancel(monkeypatch):
@@ -759,7 +783,7 @@ def test_task_cancel_reports_a_finished_task(monkeypatch):
 def test_version_flag():
     result = runner.invoke(app, ["--version"])
     assert result.exit_code == 0
-    assert "2.9.0" in result.output
+    assert "2.10.0" in result.output
 
 
 def test_output_module_does_not_import_click():

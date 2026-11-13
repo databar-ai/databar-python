@@ -354,6 +354,9 @@ status.progress          # {"total": 2, "completed": 1, "failed": 0, "processing
 # Rows that have already finished, without waiting for the rest
 client.get_task(task.task_id, include_partial=True).data
 
+# A flow task: what each step did, and which Output step (branch) answered
+client.get_task(task.task_id, include_trace=True).trace["returned_by"]
+
 # Stop it — unfinished requests are refunded, finished rows keep their results
 client.cancel_task(task.task_id)
 ```
@@ -537,6 +540,7 @@ databar task get <task-id> --poll
 
 # Collect the rows a running bulk task has already finished
 databar task get <task-id> --partial
+databar task get <task-id> --trace   # flow task: steps and the Output step that answered
 
 # Stop a running task; finished rows keep their results
 databar task cancel <task-id>

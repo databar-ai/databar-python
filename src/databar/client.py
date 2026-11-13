@@ -309,14 +309,23 @@ class DatabarClient:
     # Task polling
     # -----------------------------------------------------------------------
 
-    def get_task(self, task_id: str, include_partial: bool = False) -> TaskResponse:
+    def get_task(self, task_id: str, include_partial: bool = False, include_trace: bool = False) -> TaskResponse:
         """Get the current status of a task.
 
         While a bulk task is still running, ``progress`` carries per-input counts. Pass
         ``include_partial=True`` to also get back the rows that have already finished —
         off by default because it makes the API read the whole result set on every poll.
+
+        ``include_trace=True`` (flow tasks) fills ``trace``: what each step did, and
+        ``returned_by`` — the Output step that answered, i.e. which branch ran. Ask for it
+        when a flow completes with less in ``data`` than you expected.
         """
-        params = {"include_partial": "true"} if include_partial else None
+        params: Optional[Dict[str, str]] = {}
+        if include_partial:
+            params["include_partial"] = "true"
+        if include_trace:
+            params["include_trace"] = "true"
+        params = params or None
         data = self._request("GET", f"/tasks/{task_id}", params=params)
         return TaskResponse.model_validate(data)
 

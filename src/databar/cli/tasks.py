@@ -1,7 +1,7 @@
 """
 CLI commands for tasks.
 
-  databar task get <task-id> [--format] [--poll] [--partial]
+  databar task get <task-id> [--format] [--poll] [--partial] [--trace]
   databar task cancel <task-id>
 """
 
@@ -49,6 +49,27 @@ def _print_status(task) -> None:
         )
 
 
+def _print_trace(trace) -> None:
+    """Which Output step answered and what each step did, for one flow run (or each of a bulk run)."""
+    runs = trace if isinstance(trace, list) else [trace]
+    for index, run in enumerate(runs):
+        if run is None:
+            continue
+        if len(runs) > 1:
+            console.print(f"[bold]Input {index}:[/bold]")
+        returned_by = run.get("returned_by")
+        if returned_by:
+            name = returned_by.get("name") or returned_by.get("id")
+            console.print(f"[dim]Returned by:[/dim] {name} ({returned_by.get('id')})")
+        rows = [
+            {"node_id": step.get("node_id", ""), "type": step.get("type", ""), "cost": step.get("cost", "")}
+            for step in run.get("steps") or []
+            if isinstance(step, dict)
+        ]
+        if rows:
+            output(rows, OutputFormat.TABLE, table_columns=["node_id", "type", "cost"])
+
+
 @app.command("get")
 def get_task(
     task_id: str = _TASK_ID,
@@ -63,6 +84,11 @@ def get_task(
         "--partial",
         help="For a running bulk task, also show the rows that have already finished.",
     ),
+    trace: bool = typer.Option(
+        False,
+        "--trace",
+        help="For a flow task, also show what each step did and which Output step answered.",
+    ),
 ) -> None:
     """Get the status and result of a task."""
     client = get_client()
@@ -72,9 +98,17 @@ def get_task(
             data = client.poll_task(task_id)
             output(data, fmt)
         else:
-            task = client.get_task(task_id, include_partial=partial)
+            task = client.get_task(task_id, include_partial=partial, include_trace=trace)
             if fmt != OutputFormat.JSON:
                 _print_status(task)
+            if trace and fmt == OutputFormat.JSON:
+                output(
+                    {"task_id": task.task_id, "status": task.status, "data": task.data, "trace": task.trace},
+                    fmt,
+                )
+                return
+            if trace and task.trace:
+                _print_trace(task.trace)
             if task.data is not None:
                 output(task.data, fmt)
             elif task.error:

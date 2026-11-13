@@ -453,6 +453,60 @@ def test_validate_flow_config_posts_the_config(client: DatabarClient, httpx_mock
     assert body == {"config": {"nodes": []}}
 
 
+def test_validate_flow_config_returns_warnings_apart_from_errors(client: DatabarClient, httpx_mock: HTTPXMock):
+    httpx_mock.add_response(
+        url=f"{BASE_URL}/flows/validate-config",
+        method="POST",
+        json={
+            "valid": True,
+            "errors": [],
+            "warnings": [{"node_id": "cond1", "field": "else_nodes", "message": "this branch returns nothing"}],
+        },
+    )
+    result = client.validate_flow_config({"nodes": []})
+    assert result.valid is True
+    assert result.warnings[0].node_id == "cond1"
+    assert result.warnings[0].field == "else_nodes"
+
+
+def test_flow_outputs_carry_the_declared_output_fields(client: DatabarClient, httpx_mock: HTTPXMock):
+    httpx_mock.add_response(
+        url=f"{BASE_URL}/flows/flow-uuid-1",
+        method="GET",
+        json={
+            "id": "flow-uuid-1",
+            "name": "Qualify",
+            "description": "",
+            "inputs": [],
+            "outputs": [
+                {"id": "email", "type": "text", "description": "Work email", "response_field_id": None},
+                {"id": "company", "type": "object", "fields": [{"id": "size", "type": "number"}]},
+            ],
+            "config": {},
+        },
+    )
+    flow = client.get_flow("flow-uuid-1")
+    assert flow.outputs[0].type == "text"
+    assert flow.outputs[0].description == "Work email"
+    assert flow.outputs[1].fields[0].id == "size"
+    assert flow.outputs[1].fields[0].type == "number"
+
+
+def test_get_task_asks_for_the_trace(client: DatabarClient, httpx_mock: HTTPXMock):
+    httpx_mock.add_response(
+        url=f"{BASE_URL}/tasks/t1?include_trace=true",
+        method="GET",
+        json={
+            "task_id": "t1",
+            "status": "completed",
+            "data": {"email": "a@b.co"},
+            "trace": {"run_status": "completed", "returned_by": {"id": "out1", "name": "Output"}, "steps": []},
+        },
+    )
+    task = client.get_task("t1", include_trace=True)
+    assert task.trace["returned_by"]["id"] == "out1"
+
+
 def test_estimate_flow_cost_posts_the_config(client: DatabarClient, httpx_mock: HTTPXMock):
     httpx_mock.add_response(
         url=f"{BASE_URL}/flows/cost-estimate",

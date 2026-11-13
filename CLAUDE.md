@@ -189,6 +189,7 @@ databar trash purge --workbooks wb_a # permanent
 databar task get <task-id> --format json    # check once; bulk tasks report progress
 databar task get <task-id> --poll           # poll until complete
 databar task get <task-id> --partial        # rows a running bulk task already finished
+databar task get <task-id> --trace          # flow task: what each step did, which Output step answered
 databar task cancel <task-id>               # stop it; finished rows keep their results
 ```
 
@@ -244,6 +245,7 @@ client.create_rows(table.identifier, [InsertRow(fields={"email": "alice@example.
 task = client.get_task(task_id)
 # task.progress → {"total", "completed", "no_data", "failed", "processing"} while a bulk run is going
 # client.get_task(task_id, include_partial=True).data → rows already finished
+# client.get_task(task_id, include_trace=True).trace  → flow steps + returned_by (branch taken)
 client.cancel_task(task_id)   # stops it; poll_task then raises DatabarTaskCancelledError
 ```
 

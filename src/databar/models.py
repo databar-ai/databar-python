@@ -282,6 +282,16 @@ class TaskResponse(BaseModel):
     )
     error: Optional[Union[str, List[str]]] = None
     credits_spent: float = 0
+    trace: Optional[Union[Dict[str, Any], List[Optional[Dict[str, Any]]]]] = Field(
+        default=None,
+        description=(
+            "Flow tasks fetched with include_trace=True: what each step of the run did — "
+            "run_status, termination_reason, steps (one per node, in execution order) and "
+            "returned_by, the {id, name} of the Output step that built `data`, so you can tell "
+            "which branch the run took (None when no Output step answered). A bulk flow task "
+            "gets a list aligned to the inputs."
+        ),
+    )
 
     @classmethod
     def model_validate(cls, obj: Any, **kwargs: Any) -> "TaskResponse":
@@ -354,13 +364,27 @@ class FlowInput(BaseModel):
 
 
 class FlowOutput(BaseModel):
-    """A field produced by a flow node.
+    """A field the flow returns.
 
-    Fields: id, response_field_id.
+    Fields: id, key, name, response_field_id, type, description, fields.
+
+    For a flow that answers through Output steps, ``id`` is the key in the run
+    result and ``type`` / ``description`` are what the flow's author declared
+    (``type`` is text, number, boolean, list, object or any). An ``object``
+    field lists its sub-fields in ``fields``. The extra fields are None for a
+    flow without Output steps.
     """
 
     id: str
+    key: Optional[str] = None
+    name: Optional[str] = None
     response_field_id: Optional[int] = None
+    type: Optional[str] = Field(
+        default=None,
+        description="Declared type of an Output step field: text, number, boolean, list, object or any.",
+    )
+    description: Optional[str] = Field(default=None, description="What the field holds, as its author described it.")
+    fields: Optional[List["FlowOutput"]] = Field(default=None, description="Sub-fields of an object field.")
 
 
 class Flow(BaseModel):
@@ -453,9 +477,13 @@ class FlowConfigOpsResult(BaseModel):
 
 
 class FlowConfigError(BaseModel):
-    """One reason a flow config would be rejected on save."""
+    """One reason a flow config would be rejected on save (or, in ``warnings``, a heads-up).
+
+    ``field`` is the path inside the node (or the config) the message is about, when known.
+    """
 
     node_id: Optional[str] = None
+    field: Optional[str] = None
     message: str
 
 
@@ -464,10 +492,15 @@ class FlowValidateResult(BaseModel):
 
     An invalid config is a valid answer — ``valid`` is False and ``errors``
     names the node (when known) rather than raising.
+
+    ``warnings`` lists what saves but may not do what you meant: a condition
+    branch with no Output step (its rows return nothing), a Custom JSON
+    response without the declared output fields. They never affect ``valid``.
     """
 
     valid: bool
     errors: List[FlowConfigError] = Field(default_factory=list)
+    warnings: List[FlowConfigError] = Field(default_factory=list)
 
 
 class FlowCostEstimate(BaseModel):
