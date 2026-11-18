@@ -8,6 +8,20 @@ All notable changes to the Databar Python SDK are documented here.
 
 ---
 
+## [2.10.1] — 2026-11-18
+
+### Fixed
+
+- **`databar login` no longer leaves a bare localhost page behind.** After you
+  authorize, the browser tab the CLI listens on waits until the API key is
+  fetched; on success it closes itself and you land back on Databar's
+  "Databar CLI has been Authorized!" screen. If the login fails, the tab stays
+  and says why (access denied, plan without CLI access, expired or foreign link).
+- **No more "port already in use".** The CLI listens on a free port the OS
+  picks instead of the fixed 53682, which other tools (rclone, for one) also use.
+
+---
+
 ## [2.10.0] — 2026-11-13
 
 ### Added

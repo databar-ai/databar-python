@@ -116,7 +116,7 @@ from .models import (
     TrashItem,
 )
 
-__version__ = "2.10.0"
+__version__ = "2.10.1"
 __all__ = [
     "DatabarClient",
     # exceptions
