@@ -148,23 +148,38 @@ def login(
 
 @app.command("logout")
 def logout() -> None:
-    """Remove the saved API key from ~/.databar/config."""
+    """Sign out: revoke this CLI's key on the server and remove it from ~/.databar/config."""
     if not CONFIG_FILE.exists():
         console.print("[dim]Already logged out — no config file found.[/dim]")
         return
 
-    other_lines = [
-        line
-        for line in CONFIG_FILE.read_text().splitlines()
-        if not line.startswith(_KEY_PREFIX)
-    ]
+    lines = CONFIG_FILE.read_text().splitlines()
+    saved_key = next(
+        (line[len(_KEY_PREFIX) :].strip() for line in lines if line.startswith(_KEY_PREFIX)),
+        "",
+    )
+    revoked = None
+    if saved_key:
+        from ._oauth import revoke_sign_in
+
+        revoked = revoke_sign_in(saved_key)
+
+    other_lines = [line for line in lines if not line.startswith(_KEY_PREFIX)]
     if other_lines:
         CONFIG_FILE.write_text("\n".join(other_lines).rstrip() + "\n")
         CONFIG_FILE.chmod(0o600)
     else:
         CONFIG_FILE.unlink(missing_ok=True)
 
+    if revoked:
+        success("Logged out — this CLI's API key is revoked and removed from local config.")
+        return
     success("Logged out — API key removed from local config.")
+    if revoked is None and saved_key:
+        console.print(
+            "[dim]Could not reach Databar to revoke the key; it still works until you "
+            "revoke \"Databar CLI\" in Settings → MCP & API → Connected apps.[/dim]"
+        )
 
 
 @app.command("whoami")

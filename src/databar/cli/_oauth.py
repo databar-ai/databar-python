@@ -222,6 +222,30 @@ def _fetch_api_key(issuer: str, access_token: str) -> dict:
     return payload
 
 
+def revoke_sign_in(api_key: str) -> Optional[bool]:
+    """Ask the server to revoke the browser sign-in that owns ``api_key``.
+
+    True: the key and its "Databar CLI" entry in Connected apps are gone.
+    False: the key is not one a sign-in got (pasted with ``--api-key``, or from an
+    older sign-in that shared the workspace's default key) — the server left it.
+    None: the server could not be reached or refused; nothing changed there.
+    """
+    try:
+        response = httpx.post(
+            f"{_oauth_issuer()}/oauth/api/cli-logout/",
+            headers={"x-apikey": api_key, "Accept": "application/json"},
+            timeout=15.0,
+        )
+    except httpx.HTTPError:
+        return None
+    if response.status_code != 200:
+        return None
+    try:
+        return bool(response.json().get("revoked"))
+    except ValueError:
+        return None
+
+
 def _finish(result: _CallbackResult, issuer: str, verifier: str, redirect_uri: str) -> dict:
     if result.error:
         code = result.error

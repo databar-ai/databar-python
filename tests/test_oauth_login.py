@@ -174,3 +174,26 @@ def test_deny_and_a_foreign_state_never_reach_the_token_endpoint(monkeypatch):
     assert browser.page_status == 400
 
     assert not token.called
+
+
+@respx.mock
+@pytest.mark.parametrize(
+    ("status_code", "body", "expected"),
+    [(200, {"revoked": True}, True), (200, {"revoked": False}, False), (401, {"detail": "x"}, None)],
+)
+def test_revoke_sign_in(status_code, body, expected):
+    from databar.cli._oauth import revoke_sign_in
+
+    route = respx.post("https://databar.ai/oauth/api/cli-logout/").mock(
+        return_value=httpx.Response(status_code, json=body)
+    )
+    assert revoke_sign_in("k") is expected
+    assert route.calls.last.request.headers["x-apikey"] == "k"
+
+
+@respx.mock
+def test_revoke_sign_in_offline():
+    from databar.cli._oauth import revoke_sign_in
+
+    respx.post("https://databar.ai/oauth/api/cli-logout/").mock(side_effect=httpx.ConnectError("down"))
+    assert revoke_sign_in("k") is None

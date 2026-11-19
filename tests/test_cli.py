@@ -210,16 +210,40 @@ def test_login_oauth_preserves_other_config_lines(tmp_path, monkeypatch):
     assert "api_key=old" not in text
 
 
-def test_logout_removes_key(tmp_path, monkeypatch):
+def _logout_with(tmp_path, monkeypatch, revoked):
     config_file = tmp_path / "config"
     config_file.write_text("api_key=secret\npreferred_interface=cli\n")
     monkeypatch.setattr("databar.cli._auth.CONFIG_DIR", tmp_path)
     monkeypatch.setattr("databar.cli._auth.CONFIG_FILE", config_file)
+    calls = []
+    monkeypatch.setattr(
+        "databar.cli._oauth.revoke_sign_in", lambda key: calls.append(key) or revoked
+    )
     result = runner.invoke(app, ["logout"])
+    return result, config_file.read_text(), calls
+
+
+def test_logout_removes_key(tmp_path, monkeypatch):
+    result, text, calls = _logout_with(tmp_path, monkeypatch, revoked=False)
     assert result.exit_code == 0
-    text = config_file.read_text()
+    assert calls == ["secret"]
     assert "api_key=" not in text
     assert "preferred_interface=cli" in text
+    assert "Could not reach" not in result.output
+
+
+def test_logout_revokes_the_sign_in(tmp_path, monkeypatch):
+    result, text, _ = _logout_with(tmp_path, monkeypatch, revoked=True)
+    assert result.exit_code == 0
+    assert "revoked" in result.output
+    assert "api_key=" not in text
+
+
+def test_logout_offline_still_forgets_the_key(tmp_path, monkeypatch):
+    result, text, _ = _logout_with(tmp_path, monkeypatch, revoked=None)
+    assert result.exit_code == 0
+    assert "api_key=" not in text
+    assert "Could not reach" in result.output
 
 
 def test_whoami_table(monkeypatch):
