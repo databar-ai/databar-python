@@ -19,6 +19,7 @@ import typer
 from databar.exceptions import DatabarError
 
 from ._auth import get_client
+from ._cost import estimate_waterfall, report_spent, spent_extra
 from ._output import OutputFormat, console, error, info, output
 
 app = typer.Typer(help="Search and run waterfall enrichments.")
@@ -124,6 +125,7 @@ def run_waterfall(
     email_verifier: Optional[int] = typer.Option(None, "--email-verifier", help="Email verifier enrichment ID."),
     fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "--output", "-f"),
     raw: bool = typer.Option(False, "--raw", help="Print raw result without formatting."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show the estimated credit cost and exit without running."),
 ) -> None:
     """Run a waterfall enrichment and wait for results."""
     try:
@@ -140,6 +142,9 @@ def run_waterfall(
 
     client = get_client()
     try:
+        if dry_run:
+            estimate_waterfall(client, fmt, identifier, 1, enrichment_ids, email_verifier)
+            return
         info(f"Running waterfall '{identifier}'…")
         result = client.run_waterfall_sync(
             identifier, params,
@@ -151,11 +156,13 @@ def run_waterfall(
     finally:
         client.close()
 
+    extra = spent_extra(client)
     if raw:
         console.print(result)
         return
 
-    output(result, fmt)
+    output(result, fmt, extra=extra)
+    report_spent(extra)
 
 
 @app.command("bulk")
@@ -166,6 +173,7 @@ def bulk_waterfall(
     email_verifier: Optional[int] = typer.Option(None, "--email-verifier", help="Email verifier enrichment ID."),
     fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "--output", "-f"),
     out: Optional[str] = typer.Option(None, "--out", "-o", help="Output file (for CSV format)."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show the estimated credit cost and exit without running."),
 ) -> None:
     """Run a waterfall enrichment in bulk from a CSV input file."""
     params_list = _read_csv_as_dicts(input_file)
@@ -181,6 +189,9 @@ def bulk_waterfall(
 
     client = get_client()
     try:
+        if dry_run:
+            estimate_waterfall(client, fmt, identifier, len(params_list), enrichment_ids, email_verifier)
+            return
         info(f"Running bulk waterfall '{identifier}' for {len(params_list)} rows…")
         result = client.run_waterfall_bulk_sync(
             identifier, params_list,
@@ -192,7 +203,9 @@ def bulk_waterfall(
     finally:
         client.close()
 
-    output(result, fmt, out=out)
+    extra = spent_extra(client)
+    output(result, fmt, out=out, extra=extra)
+    report_spent(extra)
 
 
 # ---------------------------------------------------------------------------

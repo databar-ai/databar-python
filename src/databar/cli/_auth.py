@@ -55,7 +55,11 @@ def get_api_key() -> str:
 
 def get_client() -> DatabarClient:
     """Return a configured DatabarClient using the resolved API key."""
-    return DatabarClient(api_key=get_api_key(), client_source="cli")
+    from ._update_notice import notify_if_outdated
+
+    client = DatabarClient(api_key=get_api_key(), client_source="cli")
+    client.on_latest_version = notify_if_outdated
+    return client
 
 
 def _save_api_key(api_key: str) -> None:
@@ -178,10 +182,20 @@ def whoami(
     finally:
         client.close()
 
+    from databar import __version__
+
+    from ._update_notice import is_outdated
+
     data = {
         "name": user.first_name or "(no name)",
         "email": user.email,
         "balance": f"{user.balance:.2f} credits",
         "plan": user.plan,
+        "version": __version__,
+        "latest_version": client.latest_version,
     }
+    if fmt != OutputFormat.JSON:
+        latest = data.pop("latest_version")
+        if latest and is_outdated(__version__, latest):
+            data["version"] = f"{__version__} (latest {latest})"
     output(data, fmt)

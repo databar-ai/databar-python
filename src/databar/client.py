@@ -34,7 +34,7 @@ from __future__ import annotations
 import os
 import re
 import time
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Any, Callable, Dict, List, Literal, Optional, Union
 
 import httpx
 
@@ -104,6 +104,7 @@ from .models import (
 )
 
 DEFAULT_BASE_URL = "https://api.databar.ai/v1"
+LATEST_VERSION_HEADER = "X-Databar-Latest-Version"
 _ROW_BATCH_SIZE = 50
 _MAX_RETRY_ATTEMPTS = 3
 _RETRY_BASE_DELAY_S = 1.0
@@ -159,6 +160,12 @@ class DatabarClient:
         user_agent = f"databar-python/{__version__}"
         if source == "cli":
             user_agent = f"{user_agent} cli"
+        # Newest release the API reported (X-Databar-Latest-Version), and an optional
+        # callback the CLI uses to print its upgrade notice.
+        self.latest_version: Optional[str] = None
+        # The last task poll_task() saw finish, for its credits_spent.
+        self.last_task: Optional[TaskResponse] = None
+        self.on_latest_version: Optional[Callable[[str], None]] = None
         self._http = httpx.Client(
             base_url=self._base_url,
             headers={
@@ -266,6 +273,17 @@ class DatabarClient:
             response_body=body,
         )
 
+    def _note_latest_version(self, response: httpx.Response) -> None:
+        latest = response.headers.get(LATEST_VERSION_HEADER)
+        if not latest or latest == self.latest_version:
+            return
+        self.latest_version = latest
+        if self.on_latest_version is not None:
+            try:
+                self.on_latest_version(latest)
+            except Exception:
+                pass
+
     def _request(
         self,
         method: str,
@@ -287,6 +305,7 @@ class DatabarClient:
                 response = self._http.request(
                     method, path, params=params, json=json
                 )
+                self._note_latest_version(response)
                 self._raise_for_response(response)
                 return response.json() if response.content else None
             except (DatabarRateLimitError, DatabarError) as exc:
@@ -358,6 +377,8 @@ class DatabarClient:
             time.sleep(self._poll_interval_s)
             task = self.get_task(task_id)
             status = task.status.lower()
+            if status not in ("processing", "no_data"):
+                self.last_task = task
 
             if status in ("completed", "success", "partially_completed"):
                 return task.data
@@ -1006,7 +1027,9 @@ class DatabarClient:
         """
         Add an enrichment to a table with a parameter-to-column mapping.
 
-        ``mapping`` keys are enrichment parameter names. Values are dicts with:
+        ``mapping`` keys are enrichment parameter names. Values are a column
+        name or uuid as a plain string (short for the ``mapping`` dict below),
+        or dicts with:
           - ``{"type": "mapping", "value": "<column-name-or-uuid>"}``
             — reads the value from a table column per row.
             You may pass a human-readable column name; the SDK will automatically
@@ -1026,6 +1049,8 @@ class DatabarClient:
         column_map: Optional[Dict[str, str]] = None
 
         for param, entry in mapping.items():
+            if isinstance(entry, str):
+                entry = {"type": "mapping", "value": entry}
             if not isinstance(entry, dict) or entry.get("type") != "mapping":
                 resolved_mapping[param] = entry
                 continue

@@ -17,6 +17,7 @@ from typer.testing import CliRunner
 from databar.cli.app import app
 from databar.exceptions import DatabarAuthError, DatabarError, DatabarNotFoundError
 from databar.models import (
+    AddEnrichmentResponse,
     BatchInsertResponse,
     BatchInsertResultItem,
     BatchUpdateResponse,
@@ -30,6 +31,7 @@ from databar.models import (
     Flow,
     FlowInput,
     RowsResponse,
+    RunEnrichmentResponse,
     Table,
     TableEnrichment,
     TaskResponse,
@@ -51,6 +53,8 @@ def _client_mock(**method_overrides):
     m = MagicMock()
     m.__enter__ = lambda s: s
     m.__exit__ = MagicMock(return_value=False)
+    m.latest_version = None
+    m.last_task = None
 
     m.get_user.return_value = User(
         first_name="Alice", email="alice@example.com", balance=99.5, plan="pro"
@@ -226,6 +230,50 @@ def test_whoami_table(monkeypatch):
     assert "alice@example.com" in result.output
 
 
+def test_whoami_json_reports_the_latest_version(monkeypatch):
+    from databar import __version__
+
+    mock = _client_mock()
+    mock.latest_version = "99.0.0"
+    monkeypatch.setattr("databar.cli._auth.get_client", lambda: mock)
+    result = invoke(["whoami", "--format", "json"])
+    data = json.loads(result.stdout)["data"]
+    assert data["version"] == __version__
+    assert data["latest_version"] == "99.0.0"
+
+
+def test_update_notice_goes_to_stderr_once(monkeypatch, capsys):
+    from databar.cli import _update_notice
+
+    monkeypatch.setattr(_update_notice, "_shown", False)
+    monkeypatch.setattr(_update_notice, "__version__", "2.5.1")
+    monkeypatch.delenv("DATABAR_NO_UPDATE_NOTICE", raising=False)
+    _update_notice.notify_if_outdated("2.10.1")
+    _update_notice.notify_if_outdated("2.10.1")
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err.count("databar 2.5.1 is outdated, latest is 2.10.1: pip install -U databar") == 1
+
+
+def test_update_notice_stays_quiet_when_current(monkeypatch, capsys):
+    from databar.cli import _update_notice
+
+    monkeypatch.setattr(_update_notice, "_shown", False)
+    monkeypatch.setattr(_update_notice, "__version__", "2.10.1")
+    _update_notice.notify_if_outdated("2.10.1")
+    _update_notice.notify_if_outdated("2.9.9")
+    assert capsys.readouterr().err == ""
+
+
+def test_update_notice_compares_versions_as_numbers():
+    from databar.cli._update_notice import is_outdated
+
+    assert is_outdated("2.9.0", "2.10.0")
+    assert not is_outdated("2.10.0", "2.9.0")
+    assert not is_outdated("2.10", "2.10.0")
+    assert not is_outdated("2.10.0", "garbage")
+
+
 def test_whoami_json(monkeypatch):
     mock = _client_mock()
     monkeypatch.setattr("databar.cli._auth.get_client", lambda: mock)
@@ -313,6 +361,81 @@ def test_enrich_run(monkeypatch):
     result = invoke(["enrich", "run", "1", "--params", '{"email":"alice@example.com"}'])
     assert result.exit_code == 0
     mock.run_enrichment_sync.assert_called_once_with(1, {"email": "alice@example.com"})
+
+
+def test_enrich_run_json_carries_credits_spent(monkeypatch):
+    """DEV-5305: the charge of a run, beside data so data keeps its shape."""
+    mock = _client_mock()
+    mock.last_task = TaskResponse(task_id="t1", status="completed", data={"x": 1}, credits_spent=1.5)
+    monkeypatch.setattr("databar.cli.enrichments.get_client", lambda: mock)
+    result = invoke(["enrich", "run", "1", "--params", '{"email":"a@x.com"}', "--format", "json"])
+    body = json.loads(result.stdout)
+    assert body["credits_spent"] == 1.5
+    assert body["data"] == [{"email": "alice@example.com", "name": "Alice"}]
+
+
+def test_enrich_run_table_prints_credits_spent(monkeypatch):
+    mock = _client_mock()
+    mock.last_task = TaskResponse(task_id="t1", status="completed", data={}, credits_spent=0.25)
+    monkeypatch.setattr("databar.cli.enrichments.get_client", lambda: mock)
+    result = invoke(["enrich", "run", "1", "--params", '{"email":"a@x.com"}'])
+    assert "Credits spent: 0.25" in result.stdout
+
+
+def test_enrich_bulk_dry_run_estimates_without_running(monkeypatch, tmp_path):
+    mock = _client_mock()
+    monkeypatch.setattr("databar.cli.enrichments.get_client", lambda: mock)
+    src = tmp_path / "in.csv"
+    src.write_text("email\na@x.com\nb@x.com\nc@x.com\n")
+    result = invoke(["enrich", "bulk", "1", "--input", str(src), "--dry-run", "--format", "json"])
+    assert result.exit_code == 0, result.output
+    data = json.loads(result.stdout)["data"]
+    assert data["dry_run"] is True
+    assert data["records"] == 3
+    assert data["estimated_credits"] == {"min": 1.5, "max": 1.5}
+    assert data["balance"] == 99.5
+    mock.run_enrichment_bulk_sync.assert_not_called()
+
+
+def test_waterfall_dry_run_is_a_range(monkeypatch):
+    mock = _client_mock()
+    mock.get_waterfall.return_value = Waterfall(
+        identifier="email_getter",
+        name="Email Getter",
+        description="",
+        input_params=[],
+        output_fields=[],
+        available_enrichments=[
+            WaterfallEnrichment(id=10, name="A", description="", price="0.5", params=[]),
+            WaterfallEnrichment(id=11, name="B", description="", price="1.0", params=[]),
+            WaterfallEnrichment(id=12, name="C", description="", price="9", params=[], enabled_by_default=False),
+        ],
+        is_email_verifying=True,
+        email_verifiers=[{"id": 99, "price": "0.1"}],
+    )
+    monkeypatch.setattr("databar.cli.waterfalls.get_client", lambda: mock)
+    result = invoke(
+        ["waterfall", "run", "email_getter", "--params", "{}", "--email-verifier", "99", "--dry-run", "--format", "json"]
+    )
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout)["data"]["estimated_credits"] == {"min": 0.6, "max": 1.7}
+    mock.run_waterfall_sync.assert_not_called()
+
+
+def test_flow_dry_run_asks_the_api_estimate(monkeypatch):
+    from databar.models import FlowCostEstimate, FlowDetail
+
+    mock = _client_mock()
+    mock.get_flow.return_value = FlowDetail(
+        id="flow-uuid-1", name="F", description="", inputs=[], outputs=[], config={"nodes": []}
+    )
+    mock.estimate_flow_cost.return_value = FlowCostEstimate(min="0.5", max="2")
+    monkeypatch.setattr("databar.cli.flows.get_client", lambda: mock)
+    result = invoke(["flow", "run", "flow-uuid-1", "--inputs", "{}", "--dry-run"])
+    assert result.exit_code == 0, result.output
+    assert "Estimated cost of flow flow-uuid-1: 0.5–2 credits for 1 row." in result.stdout
+    mock.estimate_flow_cost.assert_called_once_with({"nodes": []})
+    mock.run_flow_sync.assert_not_called()
 
 
 def test_enrich_run_invalid_json(monkeypatch):
@@ -432,6 +555,61 @@ def test_table_delete(monkeypatch):
     result = invoke(["table", "delete", TABLE_UUID])
     assert result.exit_code == 0
     mock.delete_table.assert_called_once_with(TABLE_UUID)
+
+
+def test_table_delete_json(monkeypatch):
+    mock = _client_mock()
+    monkeypatch.setattr("databar.cli.tables.get_client", lambda: mock)
+    result = invoke(["table", "delete", TABLE_UUID, "--format", "json"])
+    assert result.exit_code == 0
+    assert json.loads(result.stdout) == {"ok": True, "data": {"uuid": TABLE_UUID, "deleted": True}}
+
+
+def test_table_add_enrichment_json_is_an_object(monkeypatch):
+    """DEV-5305: the response model went out as its repr string."""
+    mock = _client_mock(add_enrichment=AddEnrichmentResponse(id=108904, enrichment_name="Email finder"))
+    monkeypatch.setattr("databar.cli.tables.get_client", lambda: mock)
+    result = invoke(
+        ["table", "add-enrichment", TABLE_UUID, "-e", "1", "--mapping", '{"email": "email"}', "--format", "json"]
+    )
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout)["data"] == {"id": 108904, "enrichment_name": "Email finder"}
+    mock.add_enrichment.assert_called_once_with(TABLE_UUID, 1, {"email": "email"})
+
+
+def test_table_run_enrichment_defaults_to_run_all(monkeypatch):
+    """DEV-5305: without --run-strategy the CLI sent null and the server refused the run."""
+    mock = _client_mock(run_table_enrichment=RunEnrichmentResponse(status="queued", processing_rows=3))
+    monkeypatch.setattr("databar.cli.tables.get_client", lambda: mock)
+    result = invoke(["table", "run-enrichment", TABLE_UUID, "-e", "5", "--format", "json"])
+    assert result.exit_code == 0, result.output
+    mock.run_table_enrichment.assert_called_once_with(TABLE_UUID, "5", run_strategy="run_all")
+    assert json.loads(result.stdout)["data"] == {"status": "queued", "processing_rows": 3}
+
+
+def test_table_run_enrichment_refuses_an_unknown_strategy(monkeypatch):
+    mock = _client_mock()
+    monkeypatch.setattr("databar.cli.tables.get_client", lambda: mock)
+    result = invoke(["table", "run-enrichment", TABLE_UUID, "-e", "5", "--run-strategy", "empty_only"])
+    assert result.exit_code == 2
+    mock.run_table_enrichment.assert_not_called()
+
+
+def test_enrich_bulk_csv_writes_nested_values_as_json(monkeypatch, tmp_path):
+    """DEV-5305: a nested column came out as a Python dict repr (single quotes, True, None)."""
+    mock = _client_mock(
+        run_enrichment_bulk_sync=[{"email": "a@x.com", "alldata": {"ok": True, "phone": None, "tags": ["a"]}}]
+    )
+    monkeypatch.setattr("databar.cli.enrichments.get_client", lambda: mock)
+    src = tmp_path / "in.csv"
+    src.write_text("email\na@x.com\n")
+    result = invoke(["enrich", "bulk", "1", "--input", str(src), "--format", "csv"])
+    assert result.exit_code == 0, result.output
+    import csv as _csv
+    import io
+
+    rows = list(_csv.DictReader(io.StringIO(result.stdout)))
+    assert json.loads(rows[0]["alldata"]) == {"ok": True, "phone": None, "tags": ["a"]}
 
 
 def test_table_rows_json(monkeypatch):

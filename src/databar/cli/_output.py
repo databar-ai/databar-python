@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any, NoReturn, Optional, Union
 
 import typer
+from pydantic import BaseModel
 from rich import print_json as rich_print_json
 from rich.console import Console
 from rich.markup import escape
@@ -169,14 +170,35 @@ def _classify(
 # ---------------------------------------------------------------------------
 
 
+def _plain_data(data: Any) -> Any:
+    """Turn SDK models (also inside lists/dicts) into plain JSON-ready values.
+
+    Without this a pydantic model reaches ``json.dumps(default=str)`` and comes
+    out as its repr string (``"id=1 enrichment_name='...'"``).
+    """
+    if isinstance(data, BaseModel):
+        return data.model_dump(mode="json")
+    if isinstance(data, list):
+        return [_plain_data(item) for item in data]
+    if isinstance(data, tuple):
+        return [_plain_data(item) for item in data]
+    if isinstance(data, dict):
+        return {key: _plain_data(value) for key, value in data.items()}
+    return data
+
+
 def _print_json(payload: Any) -> None:
     """Print a JSON payload to stdout (Rich-highlighted when on a TTY)."""
-    rich_print_json(json.dumps(payload, default=str))
+    rich_print_json(json.dumps(_plain_data(payload), default=str))
 
 
-def output_json(data: Any) -> None:
-    """Print data as a success envelope: {"ok": true, "data": ...}."""
-    _print_json({"ok": True, "data": data})
+def output_json(data: Any, extra: Optional[dict] = None) -> None:
+    """Print data as a success envelope: {"ok": true, "data": ...}.
+
+    ``extra`` adds top-level keys beside ``data`` (e.g. ``credits_spent``), so the
+    shape of ``data`` itself never changes.
+    """
+    _print_json({"ok": True, "data": data, **(extra or {})})
 
 
 def output_table(rows: list[dict], columns: list[str] | None = None) -> None:
@@ -244,7 +266,7 @@ def output_csv(
     dest = open(out, "w", newline="", encoding="utf-8") if out else sys.stdout
     writer = csv.DictWriter(dest, fieldnames=cols, extrasaction="ignore")
     writer.writeheader()
-    writer.writerows(rows)
+    writer.writerows({key: _csv_cell(value) for key, value in row.items()} for row in rows)
     if out and not dest.closed:
         dest.close()
         console.print(f"[green]Saved to {out}[/green]")
@@ -255,6 +277,7 @@ def output(
     fmt: OutputFormat,
     table_columns: list[str] | None = None,
     out: Union[str, Path] | None = None,
+    extra: Optional[dict] = None,
 ) -> None:
     """
     Unified output dispatcher — routes to the right format handler.
@@ -264,8 +287,9 @@ def output(
       - a dict           → wrapped in a list for table, raw for json
       - any other value  → rendered as json
     """
+    data = _plain_data(data)
     if fmt == OutputFormat.JSON:
-        output_json(data)
+        output_json(data, extra)
         return
 
     rows = _to_rows(data)
@@ -313,18 +337,32 @@ def error(
     raise typer.Exit(code=final_exit)
 
 
+def _status_console() -> Optional[Console]:
+    """Where status lines go: nowhere in JSON mode, stderr in CSV mode.
+
+    CSV goes to stdout to be piped or redirected, so a "Running…" line there
+    becomes the first row of the file.
+    """
+    fmt = _current_format()
+    if fmt == OutputFormat.JSON:
+        return None
+    if fmt == OutputFormat.CSV:
+        return err_console
+    return console
+
+
 def success(message: str) -> None:
     """Print a styled success message (no-op in JSON mode — keep stdout clean)."""
-    if _current_format() == OutputFormat.JSON:
-        return
-    console.print(f"[bold green]{message}[/bold green]")
+    target = _status_console()
+    if target is not None:
+        target.print(f"[bold green]{message}[/bold green]")
 
 
 def info(message: str) -> None:
     """Print a dim informational message (no-op in JSON mode)."""
-    if _current_format() == OutputFormat.JSON:
-        return
-    console.print(f"[dim]{message}[/dim]")
+    target = _status_console()
+    if target is not None:
+        target.print(f"[dim]{message}[/dim]")
 
 
 # ---------------------------------------------------------------------------
@@ -338,6 +376,13 @@ def _cell(value: Any) -> str:
     if isinstance(value, (dict, list)):
         return json.dumps(value, default=str)
     return str(value)
+
+
+def _csv_cell(value: Any) -> Any:
+    """Nested values go into a CSV cell as JSON, not as a Python repr."""
+    if isinstance(value, (dict, list)):
+        return json.dumps(value, default=str, ensure_ascii=False)
+    return value
 
 
 def _to_rows(data: Any) -> list[dict]:

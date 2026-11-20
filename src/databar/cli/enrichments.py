@@ -3,8 +3,8 @@ CLI commands for enrichments.
 
   databar enrich list    [--query] [--format]
   databar enrich get     <id> [--format]
-  databar enrich run     <id> --params '{"k":"v"}' [--format]
-  databar enrich bulk    <id> --input FILE.csv [--format] [--out FILE]
+  databar enrich run     <id> --params '{"k":"v"}' [--dry-run] [--format]
+  databar enrich bulk    <id> --input FILE.csv [--dry-run] [--format] [--out FILE]
   databar enrich choices <id> <param> [--query] [--page] [--limit]
 """
 
@@ -20,6 +20,7 @@ import typer
 from databar.exceptions import DatabarError
 
 from ._auth import get_client
+from ._cost import estimate_enrichment, report_spent, spent_extra
 from ._output import OutputFormat, console, error, info, output
 
 app = typer.Typer(help="Search and run data enrichments.")
@@ -116,6 +117,7 @@ def run_enrichment(
     params_json: str = typer.Option(..., "--params", "-p", help='JSON params, e.g. \'{"email":"alice@example.com"}\''),
     fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "--output", "-f"),
     raw: bool = typer.Option(False, "--raw", help="Print raw result without formatting."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show the estimated credit cost and exit without running."),
 ) -> None:
     """Run a single enrichment and wait for results."""
     try:
@@ -125,6 +127,9 @@ def run_enrichment(
 
     client = get_client()
     try:
+        if dry_run:
+            estimate_enrichment(client, fmt, enrichment_id, records=1)
+            return
         info(f"Running enrichment #{enrichment_id}…")
         result = client.run_enrichment_sync(enrichment_id, params)
     except DatabarError as exc:
@@ -132,11 +137,13 @@ def run_enrichment(
     finally:
         client.close()
 
+    extra = spent_extra(client)
     if raw:
         console.print(result)
         return
 
-    output(result, fmt)
+    output(result, fmt, extra=extra)
+    report_spent(extra)
 
 
 @app.command("bulk")
@@ -145,6 +152,7 @@ def bulk_enrichment(
     input_file: Path = typer.Option(..., "--input", "-i", help="CSV file with one row per input.", exists=True),
     fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "--output", "-f"),
     out: Optional[str] = typer.Option(None, "--out", "-o", help="Output file (for CSV format)."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show the estimated credit cost and exit without running."),
 ) -> None:
     """Run a bulk enrichment from a CSV input file."""
     params_list = _read_csv_as_dicts(input_file)
@@ -153,6 +161,9 @@ def bulk_enrichment(
 
     client = get_client()
     try:
+        if dry_run:
+            estimate_enrichment(client, fmt, enrichment_id, records=len(params_list))
+            return
         info(f"Running bulk enrichment #{enrichment_id} for {len(params_list)} rows…")
         result = client.run_enrichment_bulk_sync(enrichment_id, params_list)
     except DatabarError as exc:
@@ -160,7 +171,9 @@ def bulk_enrichment(
     finally:
         client.close()
 
-    output(result, fmt, out=out)
+    extra = spent_extra(client)
+    output(result, fmt, out=out, extra=extra)
+    report_spent(extra)
 
 
 @app.command("choices")

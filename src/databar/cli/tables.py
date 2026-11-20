@@ -3,7 +3,7 @@ CLI commands for tables and rows.
 
   databar table list
   databar table create        [--name] [--columns col1,col2,...]
-  databar table delete        <uuid>
+  databar table delete        <uuid> [--format]
   databar table columns       <uuid>
   databar table rows          <uuid> [--page] [--per-page] [--format] [--out]
   databar table insert        <uuid> (--data JSON | --input FILE.csv) [--allow-new-columns] [--dedupe-keys]
@@ -11,7 +11,7 @@ CLI commands for tables and rows.
   databar table upsert        <uuid> --key-col <col> (--data JSON | --input FILE.csv)
   databar table enrichments   <uuid>
   databar table add-enrichment <uuid> --enrichment-id <n> --mapping '{...}'
-  databar table run-enrichment <uuid> --enrichment-id <n> [--run-strategy]
+  databar table run-enrichment <uuid> --enrichment-id <n> [--run-strategy] [--format]
   databar table move          <uuid> (--workbook <wb_id> | --new-workbook [--name])
 """
 
@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import csv
 import json
+from enum import Enum
 from pathlib import Path
 from typing import Optional
 
@@ -31,6 +32,12 @@ from databar.models import BatchUpdateRow, InsertOptions, InsertRow, DedupeOptio
 
 from ._auth import get_client
 from ._output import OutputFormat, error, info, output, require_uuid, success
+
+class RunStrategy(str, Enum):
+    RUN_ALL = "run_all"
+    RUN_EMPTY = "run_empty"
+    RUN_ERRORS = "run_errors"
+
 
 app = typer.Typer(help="Manage tables and rows.")
 
@@ -104,8 +111,9 @@ def create_table(
 @app.command("delete")
 def delete_table(
     table_uuid: str = _TABLE_UUID,
+    fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "--output", "-f"),
 ) -> None:
-    """Delete a table and all its rows."""
+    """Delete a table and all its rows. Does not ask for confirmation."""
     client = get_client()
     try:
         client.delete_table(table_uuid)
@@ -115,6 +123,8 @@ def delete_table(
         client.close()
 
     success(f"Table deleted: {table_uuid}")
+    if fmt == OutputFormat.JSON:
+        output({"uuid": table_uuid, "deleted": True}, fmt)
 
 
 @app.command("columns")
@@ -346,7 +356,16 @@ def table_enrichments(
 def add_enrichment(
     table_uuid: str = _TABLE_UUID,
     enrichment_id: int = typer.Option(..., "--enrichment-id", "-e", help="Enrichment ID to add."),
-    mapping_json: str = typer.Option(..., "--mapping", "-m", help='JSON mapping of param → column, e.g. \'{"email": "email_col"}\''),
+    mapping_json: str = typer.Option(
+        ...,
+        "--mapping",
+        "-m",
+        help=(
+            'JSON mapping of enrichment param → table column name, e.g. \'{"email": "Email"}\'. '
+            'Long form: \'{"email": {"type": "mapping", "value": "Email"}}\'; '
+            'a fixed value for every row: \'{"country": {"type": "simple", "value": "US"}}\'.'
+        ),
+    ),
     fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "--output", "-f"),
 ) -> None:
     """Add an enrichment to a table with a column mapping."""
@@ -371,20 +390,24 @@ def add_enrichment(
 def run_table_enrichment(
     table_uuid: str = _TABLE_UUID,
     enrichment_id: str = typer.Option(..., "--enrichment-id", "-e", help="Table enrichment ID (from `table enrichments`)."),
-    run_strategy: Optional[str] = typer.Option(None, "--run-strategy", help="Run strategy (e.g. 'empty_only')."),
+    run_strategy: RunStrategy = typer.Option(
+        RunStrategy.RUN_ALL,
+        "--run-strategy",
+        help="run_all (every row), run_empty (rows without a result) or run_errors (rows that errored).",
+    ),
+    fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "--output", "-f"),
 ) -> None:
-    """Trigger an enrichment to run on all rows in a table."""
+    """Trigger an enrichment to run on the rows of a table."""
     client = get_client()
     try:
-        result = client.run_table_enrichment(table_uuid, enrichment_id, run_strategy=run_strategy)
+        result = client.run_table_enrichment(table_uuid, enrichment_id, run_strategy=run_strategy.value)
     except DatabarError as e:
         error(e)
     finally:
         client.close()
 
     success("Table enrichment triggered.")
-    if result:
-        output(result, OutputFormat.JSON)
+    output(result, fmt)
 
 
 @app.command("duplicate")

@@ -6,6 +6,34 @@ All notable changes to the Databar Python SDK are documented here.
 
 ## [Unreleased]
 
+### Added
+
+- **Cost before and after a run.** `enrich run`, `enrich bulk`, `waterfall run`,
+  `waterfall bulk` and `flow run` take `--dry-run`: the estimated credits at
+  your workspace prices and your balance, nothing run. After a run they print
+  `Credits spent: …`, or put `credits_spent` beside `data` with `--format json`.
+  `DatabarClient.last_task` holds the finished task, with `credits_spent`.
+- **Upgrade notice.** The API names the newest release in an
+  `X-Databar-Latest-Version` header; when you are behind, the CLI prints one
+  line on stderr (`DATABAR_NO_UPDATE_NOTICE=1` turns it off). `whoami` shows
+  `version` and `latest_version`. `DatabarClient.latest_version` holds it too.
+- `table run-enrichment` and `table delete` take `--format`.
+
+### Fixed
+
+- `table run-enrichment` without `--run-strategy` sent no strategy and the API
+  refused it. It defaults to `run_all`, and only `run_all`, `run_empty` and
+  `run_errors` are accepted (the help used to suggest `empty_only`).
+- `table add-enrichment --mapping '{"email": "Email"}'`, the form the help
+  shows, is now a column mapping. The SDK's `add_enrichment()` takes a plain
+  column name the same way.
+- `add-enrichment` and `run-enrichment` printed their result as a Python repr
+  string (`"id=1 enrichment_name='…'"`); they print a JSON object.
+- `--format csv` wrote nested values (`alldata`) as Python reprs (single
+  quotes, `True`, `None`); they are JSON now. Status lines such as
+  "Running bulk enrichment…" go to stderr in CSV mode, so they no longer end up
+  as the first line of the CSV.
+
 ---
 
 ## [2.10.1] — 2026-11-18

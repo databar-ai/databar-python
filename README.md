@@ -411,9 +411,14 @@ After installing, the `databar` command is available in your terminal.
 databar login              # browser OAuth → save API key
 databar login --api-key …  # paste a key (CI / agents)
 databar logout             # remove saved key
-databar whoami             # show name, email, balance, plan
-databar whoami --format json
+databar whoami             # show name, email, balance, plan, CLI version
+databar whoami --format json   # also latest_version: the newest release on PyPI
 ```
+
+When a newer release is out, any command prints one line on stderr:
+`databar 2.5.1 is outdated, latest is 2.10.1: pip install -U databar`.
+It never touches stdout, so `--format json` stays clean. Set
+`DATABAR_NO_UPDATE_NOTICE=1` to turn it off.
 
 ### Enrichments
 
@@ -430,8 +435,18 @@ databar enrich get 123
 databar enrich run 123 --params '{"email": "alice@example.com"}'
 databar enrich run 123 --params '{"email": "alice@example.com"}' --format json
 
-# Bulk run from CSV
+# What would it cost? Prints the estimate and your balance, runs nothing
+databar enrich run 123 --params '{"email": "alice@example.com"}' --dry-run
+databar enrich bulk 123 --input emails.csv --dry-run
+
+# Bulk run from CSV (nested result fields are written as JSON)
 databar enrich bulk 123 --input emails.csv --format csv --out results.csv
+```
+
+Every run reports what it charged: a `Credits spent: …` line, or with
+`--format json` a top-level `credits_spent` beside `data`.
+
+```bash
 
 # Get choices for a select parameter
 databar enrich choices 123 country
@@ -453,6 +468,9 @@ databar waterfall run email_getter --params '{"linkedin_url": "https://linkedin.
 
 # Bulk run from CSV
 databar waterfall bulk email_getter --input leads.csv --out results.csv
+
+# Cost range before running: cheapest provider answering first .. every provider running
+databar waterfall bulk email_getter --input leads.csv --dry-run
 ```
 
 ### Flows
@@ -468,6 +486,7 @@ databar flow get <flow-id>
 # Run a flow (--inputs maps each flow input id → value)
 databar flow run <flow-id> --inputs '{"email": "alice@example.com"}'
 databar flow run <flow-id> --inputs '{"email": "alice@example.com"}' --format json
+databar flow run <flow-id> --inputs '{"email": "alice@example.com"}' --dry-run   # cost range of one run
 ```
 
 ### Tables
@@ -499,8 +518,10 @@ databar table upsert <uuid> --key-col email --input data.csv
 
 # Enrichments on a table
 databar table enrichments <uuid>
-databar table add-enrichment <uuid> --enrichment-id 123 --mapping '{"email": "email_col"}'
-databar table run-enrichment <uuid> --enrichment-id <table-enrichment-id>
+databar table add-enrichment <uuid> --enrichment-id 123 --mapping '{"email": "Email"}'   # param → column name
+databar table add-enrichment <uuid> --enrichment-id 123 --mapping '{"country": {"type": "simple", "value": "US"}}'
+databar table run-enrichment <uuid> --enrichment-id <table-enrichment-id>                       # run_all
+databar table run-enrichment <uuid> --enrichment-id <table-enrichment-id> --run-strategy run_empty
 
 # Duplicate, clear, export, dedupe
 databar table duplicate <uuid>

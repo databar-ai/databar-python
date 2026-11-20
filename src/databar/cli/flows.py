@@ -22,6 +22,7 @@ import typer
 from databar.exceptions import DatabarError
 
 from ._auth import get_client
+from ._cost import estimate_flow, report_spent, spent_extra
 from ._output import OutputFormat, console, error, info, output
 
 app = typer.Typer(help="List and run saved flows.")
@@ -118,6 +119,7 @@ def run_flow(
     inputs_json: str = typer.Option(..., "--inputs", "-i", help='JSON inputs, e.g. \'{"email":"a@b.com"}\''),
     fmt: OutputFormat = typer.Option(OutputFormat.TABLE, "--format", "--output", "-f"),
     raw: bool = typer.Option(False, "--raw", help="Print raw result without formatting."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show the estimated credit cost and exit without running."),
 ) -> None:
     """Run a flow and wait for results."""
     try:
@@ -127,6 +129,9 @@ def run_flow(
 
     client = get_client()
     try:
+        if dry_run:
+            estimate_flow(client, fmt, flow_id, records=1)
+            return
         info(f"Running flow '{flow_id}'…")
         result = client.run_flow_sync(flow_id, inputs)
     except DatabarError as exc:
@@ -134,11 +139,13 @@ def run_flow(
     finally:
         client.close()
 
+    extra = spent_extra(client)
     if raw:
         console.print(result)
         return
 
-    output(result, fmt)
+    output(result, fmt, extra=extra)
+    report_spent(extra)
 
 
 @app.command("versions")

@@ -588,3 +588,25 @@ def test_stale_token_on_restore_raises_conflict(client: DatabarClient, httpx_moc
     )
     with pytest.raises(DatabarConflictError):
         client.restore_flow_version("flow-uuid-1", 1, internal_version="stale")
+
+
+def test_client_records_the_latest_version_header(client: DatabarClient, httpx_mock: HTTPXMock):
+    """DEV-5305: the API reports the newest release on every response."""
+    seen = []
+    client.on_latest_version = seen.append
+    httpx_mock.add_response(
+        url=f"{BASE_URL}/user/me",
+        json={"first_name": "A", "email": "a@x.com", "balance": 1, "plan": "free"},
+        headers={"X-Databar-Latest-Version": "2.11.0"},
+    )
+    client.get_user()
+    assert client.latest_version == "2.11.0"
+    assert seen == ["2.11.0"]
+
+
+def test_poll_task_keeps_the_finished_task_for_its_charge(client: DatabarClient, httpx_mock: HTTPXMock):
+    httpx_mock.add_response(url=f"{BASE_URL}/enrichments/1/run", json=task_payload("processing"))
+    httpx_mock.add_response(json={**task_payload("completed", data={"email": "a@x.com"}), "credits_spent": 0.75})
+    client.run_enrichment_sync(1, {"email": "a@x.com"})
+    assert client.last_task is not None
+    assert client.last_task.credits_spent == 0.75

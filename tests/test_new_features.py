@@ -279,6 +279,21 @@ def test_add_enrichment_returns_response(client: DatabarClient, httpx_mock: HTTP
     assert result.enrichment_name == "Email Enrichment"
 
 
+def test_add_enrichment_takes_a_column_name_as_a_plain_string(client: DatabarClient, httpx_mock: HTTPXMock):
+    """DEV-5305: the short form the CLI help shows, '{"email": "Email"}', is a column mapping."""
+    httpx_mock.add_response(
+        url=f"{BASE_URL}/table/tbl-1/columns",
+        json=[{"identifier": "col-uuid-1", "internal_name": "email", "name": "Email", "type_of_value": "text"}],
+    )
+    httpx_mock.add_response(
+        url=f"{BASE_URL}/table/tbl-1/add-enrichment",
+        json={"id": 42, "enrichment_name": "Email Enrichment"},
+    )
+    client.add_enrichment("tbl-1", 1, {"email": "Email"})
+    body = json.loads(httpx_mock.get_requests()[-1].content)
+    assert body["mapping"] == {"email": {"type": "mapping", "value": "col-uuid-1"}}
+
+
 def test_add_enrichment_sends_launch_strategy(client: DatabarClient, httpx_mock: HTTPXMock):
     httpx_mock.add_response(
         url=f"{BASE_URL}/table/tbl-1/add-enrichment",
