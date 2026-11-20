@@ -4,7 +4,7 @@ All notable changes to the Databar Python SDK are documented here.
 
 ---
 
-## [Unreleased]
+## [2.11.0] — 2026-11-20
 
 ### Added
 
@@ -18,6 +18,19 @@ All notable changes to the Databar Python SDK are documented here.
   line on stderr (`DATABAR_NO_UPDATE_NOTICE=1` turns it off). `whoami` shows
   `version` and `latest_version`. `DatabarClient.latest_version` holds it too.
 - `table run-enrichment` and `table delete` take `--format`.
+
+### Changed
+
+- **`databar logout` revokes the sign-in.** It asks Databar to revoke the
+  browser sign-in that owns the saved key, so the key stops working and
+  "Databar CLI" leaves Settings → MCP & API → Connected apps, then removes the
+  key from `~/.databar/config`. A key pasted with `databar login --api-key`, or
+  one from a sign-in made before this release, is only removed locally. If
+  Databar cannot be reached, the CLI says how to revoke the key in the app.
+- Each `databar login` now gets its own "Databar CLI" API key instead of your
+  workspace's default key, so Revoke in Connected apps cuts the CLI off without
+  breaking your other integrations. Sign in again to move an existing CLI onto
+  its own key.
 
 ### Fixed
 

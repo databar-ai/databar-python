@@ -410,7 +410,7 @@ After installing, the `databar` command is available in your terminal.
 ```bash
 databar login              # browser OAuth → save API key
 databar login --api-key …  # paste a key (CI / agents)
-databar logout             # remove saved key
+databar logout             # revoke this sign-in and remove the saved key
 databar whoami             # show name, email, balance, plan, CLI version
 databar whoami --format json   # also latest_version: the newest release on PyPI
 ```
